@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "2139032549",
+    "project_id": "sportsgear-81641",
+    "storage_bucket": "sportsgear-81641.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:2139032549:android:44d3f27d46dd13ec17fd0c",
+        "android_client_info": {
+          "package_name": "com.example.sportsgear"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6w_nYwA6gKcZZpm8YPmnJKibPn41CQG0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

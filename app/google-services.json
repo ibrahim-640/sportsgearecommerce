@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "1098922599575",
+    "firebase_url": "https://sportsgear-e12d3-default-rtdb.firebaseio.com",
+    "project_id": "sportsgear-e12d3",
+    "storage_bucket": "sportsgear-e12d3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1098922599575:android:f1e164498b21e82b55b5d2",
+        "android_client_info": {
+          "package_name": "com.example.ecommerce"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDv23D8ja9oTGL6a9bCQGEExaZzd8Ov4i0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1098922599575:android:195c4b756f66a49f55b5d2",
+        "android_client_info": {
+          "package_name": "com.example.sportsgear"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDv23D8ja9oTGL6a9bCQGEExaZzd8Ov4i0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
