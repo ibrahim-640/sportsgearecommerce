@@ -12,17 +12,17 @@ import androidx.navigation.compose.rememberNavController
 
 //import com.example.sportsgear.ui.screens.products.UpdateProductScreen
 import com.example.sportsgear.ui.theme.screens.AddProductScreen
-import com.example.sportsgear.ui.theme.screens.HomeScreen
 import com.example.sportsgear.ui.theme.screens.RegisterScreen
 import com.example.sportsgear.ui.theme.screens.SplashScreen
+import com.example.sportsgear.ui.theme.screens.home.HomeScreen
 
 
 @Composable
-fun AppNavHost(navController:NavHostController= rememberNavController(),startDestination:String= ROUTE_REGISTER){
+fun AppNavHost(navController:NavHostController= rememberNavController(),startDestination:String= ROUTE_SPLASH){
     NavHost(navController=navController,startDestination=startDestination){
-//        composable(ROUTE_LOGIN){ SplashScreen{
-//            navController.navigate(ROUTE_REGISTER){
-//                popUpTo(ROUTE_LOGIN){inclusive=true}} } }
+        composable(ROUTE_SPLASH){ SplashScreen{
+            navController.navigate(ROUTE_REGISTER){
+                popUpTo(ROUTE_SPLASH){inclusive=true}} } }
         composable(ROUTE_REGISTER) {
             RegisterScreen(navController)
         }

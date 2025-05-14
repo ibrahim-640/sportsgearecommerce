@@ -1,5 +1,4 @@
 package com.example.sportsgear.ui.theme.screens
-import com.example.sportsgear.R
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -16,6 +15,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.sportsgear.R
 
 @Composable
 fun SplashScreen(onNavigateToNext: () -> Unit){
@@ -30,7 +30,7 @@ fun SplashScreen(onNavigateToNext: () -> Unit){
             Image(painter = painterResource(id = R.drawable.img),
                 contentDescription = "App Logo",
                 modifier = Modifier.size(300.dp))
-            Text(text = "Welcome to Emobilis",
+            Text(text = "Welcome to the home of sports gear",
                 color = Color.White,
                 fontSize = 28.sp)
         }
