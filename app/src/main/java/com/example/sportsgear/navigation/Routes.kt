@@ -1,9 +1,9 @@
 package com.example.sportsgear.navigation
 const val ROUTE_LOGIN = "login"
 const val ROUTE_HOME = "home"
-const val ROUTE_REGISTER = "register"
+const val ROUTE_REGISTER = "registerScreen"
 const val ROUTE_SPLASH = "splash"
-const val ROUTE_PRODUCT_LIST = "productlist"
-const val ROUTE_PRODUCT_DETAIL = "productdetail"
+const val ROUTE_UPDATE_PRODUCT = "updateproduct"
+const val ROUTE_VIEW_PRODUCTS = "viewproduct"
 const val ROUTE_ADD_PRODUCT = "addproducts"
 

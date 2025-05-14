@@ -1,4 +1,5 @@
 package com.example.sportsgear.repository
+
 import com.example.sportsgear.models.ProductModel
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
@@ -7,7 +8,6 @@ class ProductRepository {
     private val firestore = FirebaseFirestore.getInstance()
     private val productsCollection = firestore.collection("products")
 
-
     fun addProduct(product: ProductModel, onResult: (Boolean) -> Unit) {
         productsCollection.add(product)
             .addOnCompleteListener { task ->
@@ -15,18 +15,25 @@ class ProductRepository {
             }
     }
 
-
     suspend fun getProducts(): List<ProductModel> {
         return try {
             val snapshot = productsCollection.get().await()
             snapshot.documents.mapNotNull { document ->
-                document.toObject(ProductModel::class.java)?.copy(id = document.id)
+                document.toObject(ProductModel::class.java)?.copy(productId = document.id)
             }
         } catch (e: Exception) {
             emptyList()
         }
     }
 
+//    fun viewProduct(productId: String): ProductModel? {
+//        return try {
+//            val document = productsCollection.document(productId).get().await()
+//            document.toObject(ProductModel::class.java)?.copy(productId = document.id)
+//        } catch (e: Exception) {
+//            null
+//        }
+//    }
 
     fun deleteProduct(productId: String, onResult: (Boolean) -> Unit) {
         productsCollection.document(productId)
@@ -36,5 +43,3 @@ class ProductRepository {
             }
     }
 }
-
-
