@@ -3,10 +3,10 @@ import androidx.annotation.Keep
 
 @Keep
 data class ProductModel(
-    val id: String="",
+    val productId: String="",
     val name: String="",
     val description: String="",
-    val price: Double=0.0,
+    val price: String="",
     val imageUri: String="",
     val category: String="",
     val value : String="",

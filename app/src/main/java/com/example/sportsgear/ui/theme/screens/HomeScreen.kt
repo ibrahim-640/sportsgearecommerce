@@ -7,11 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.example.sportsgear.R
 import com.example.sportsgear.navigation.ROUTE_ADD_PRODUCT
-import com.example.sportsgear.navigation.ROUTE_PRODUCT_LIST
+import com.example.sportsgear.navigation.ROUTE_VIEW_PRODUCTS
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
@@ -58,7 +61,7 @@ fun HomeScreen(navController: NavController) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            navController.navigate(ROUTE_PRODUCT_LIST)
+                            navController.navigate(ROUTE_VIEW_PRODUCTS)
                         },
                     elevation = CardDefaults.cardElevation(8.dp)
                 ) {
@@ -70,4 +73,10 @@ fun HomeScreen(navController: NavController) {
             }
         }
     }
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun HomeScreenPreview() {
+    HomeScreen(rememberNavController())
+}
 
