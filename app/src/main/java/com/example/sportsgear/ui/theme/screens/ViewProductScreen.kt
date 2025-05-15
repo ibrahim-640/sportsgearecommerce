@@ -1,3 +1,4 @@
+package com.example.sportsgear.ui.screens.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,8 +23,7 @@ import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.example.sportsgear.models.ProductModel
 import com.example.sportsgear.navigation.ROUTE_UPDATE_PRODUCT
-import com.example.sportsgear.repository.ProductRepository
-import com.example.sportsgearapp.data.ProductViewModel
+import com.example.sportsgear.data.ProductViewModel
 
 
 @Composable

@@ -1,5 +1,4 @@
-package com.example.sportsgearapp.data
-
+package com.example.sportsgear.data
 import android.app.AlertDialog
 import android.content.Context
 import android.net.Uri
@@ -65,7 +64,7 @@ class ProductViewModel : ViewModel() {
         category: String,
         price: Double,
         description: String,
-        navController: NavController
+        navController: NavController,
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val file = getFileFromUri(context, uri)
