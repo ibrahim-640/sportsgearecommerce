@@ -1,4 +1,5 @@
-package com.example.sportsgear.ui.theme.screens
+
+package com.example.sportsgear.ui.theme.screens.register
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,10 +43,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import com.example.sportsgear.R
 import com.example.sportsgear.data.AuthViewModel
+import com.example.sportsgear.R
 import com.example.sportsgear.navigation.ROUTE_LOGIN
-
 
 @Composable
 fun RegisterScreen(navController: NavController){
@@ -64,6 +64,7 @@ fun RegisterScreen(navController: NavController){
             color = Color.Black,
             textAlign = TextAlign.Center,
             modifier = Modifier.background(Color.Gray).fillMaxWidth().padding(20.dp)
+
         )
         Spacer(modifier = Modifier.height(10.dp))
         Image(painter = painterResource(id = R.drawable.img), contentDescription = "logo", modifier = Modifier.wrapContentHeight().fillMaxWidth().height(40.dp))
@@ -79,11 +80,12 @@ fun RegisterScreen(navController: NavController){
             authViewModel.signup(firstname,lastname,email,password,navController,context)
         }, modifier = Modifier.wrapContentWidth().align(Alignment.CenterHorizontally), colors = ButtonDefaults.buttonColors(
             Color.Black)) { Text(text = "Register") }
-        Text(text = buildAnnotatedString { append("If already registered, Login here") }, modifier = Modifier.wrapContentWidth().align(
+        Text(text = buildAnnotatedString { append("Already registered?. Login here") }, modifier = Modifier.wrapContentWidth().align(
             Alignment.CenterHorizontally).clickable {
             navController.navigate(ROUTE_LOGIN)
         })
     }
+
 }
 
 @Preview(showBackground = true, showSystemUi = true)

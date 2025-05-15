@@ -1,6 +1,6 @@
 
 package com.example.sportsgear.navigation
-import LoginScreen
+import com.example.sportsgear.ui.theme.screens.login.LoginScreen
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -10,9 +10,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.sportsgear.data.ProductViewModel
 import com.example.sportsgear.ui.screens.screens.AddProductScreen
 import com.example.sportsgear.ui.screens.screens.ViewProductsScreen
-import com.example.sportsgear.ui.theme.screens.RegisterScreen
 import com.example.sportsgear.ui.theme.screens.SplashScreen
 import com.example.sportsgear.ui.theme.screens.home.HomeScreen
+import com.example.sportsgear.ui.theme.screens.register.RegisterScreen
 
 @Composable
 fun AppNavHost(navController:NavHostController= rememberNavController(),startDestination:String= ROUTE_SPLASH){
