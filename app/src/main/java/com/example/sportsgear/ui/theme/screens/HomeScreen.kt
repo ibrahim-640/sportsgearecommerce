@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.sportsgear.R
+import com.example.sportsgear.navigation.ROUTE_ADD_PRODUCT
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +98,7 @@ fun HomeScreen(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             TopAppBar(
-                title = { Text("VytalFit Gear") },
+                title = { Text("Home of sports") },
                 navigationIcon = {
                     IconButton(onClick = {}) {
                         Icon(Icons.Filled.Home, contentDescription = "Home")
@@ -129,7 +130,7 @@ fun HomeScreen(navController: NavController) {
                             modifier = Modifier
                                 .padding(10.dp)
                                 .clickable {
-                                    navController.navigate("ROUTE_ADD_PRODUCT ")
+                                    navController.navigate(ROUTE_ADD_PRODUCT) // ✅ Fixed route
                                 },
                             shape = RoundedCornerShape(20.dp),
                             elevation = CardDefaults.cardElevation(10.dp),
