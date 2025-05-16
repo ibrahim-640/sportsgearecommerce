@@ -10,16 +10,22 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.sportsgear.data.ProductViewModel
 import com.example.sportsgear.ui.screens.screens.AddProductScreen
 import com.example.sportsgear.ui.screens.screens.ViewProductsScreen
+import com.example.sportsgear.ui.theme.screens.CartScreen
 import com.example.sportsgear.ui.theme.screens.SplashScreen
+import com.example.sportsgear.ui.theme.screens.StartScreen
 import com.example.sportsgear.ui.theme.screens.home.HomeScreen
 import com.example.sportsgear.ui.theme.screens.register.RegisterScreen
 
 @Composable
-fun AppNavHost(navController:NavHostController= rememberNavController(),startDestination:String= ROUTE_SPLASH){
-    NavHost(navController=navController,startDestination=startDestination){
-        composable(ROUTE_SPLASH){ SplashScreen{
-            navController.navigate(ROUTE_REGISTER){
-                popUpTo(ROUTE_SPLASH){inclusive=true}} } }
+fun AppNavHost(navController:NavHostController= rememberNavController(),startDestination:String= ROUTE_SPLASH) {
+    NavHost(navController = navController, startDestination = startDestination) {
+        composable(ROUTE_SPLASH) {
+            SplashScreen {
+                navController.navigate(ROUTE_REGISTER) {
+                    popUpTo(ROUTE_SPLASH) { inclusive = true }
+                }
+            }
+        }
         composable(ROUTE_REGISTER) {
             RegisterScreen(navController)
         }
@@ -37,9 +43,19 @@ fun AppNavHost(navController:NavHostController= rememberNavController(),startDes
         composable(ROUTE_VIEW_PRODUCTS) {
             ViewProductsScreen(navController)
         }
+        composable(ROUTE_STARTER) {
+            StartScreen(navController)
+
+        }
+        composable(ROUTE_CART) {
+            CartScreen(navController)
+
+
+
 //        composable("$ROUTE_UPDATE_PRODUCT/{productId}") { backStackEntry ->
 //            val productId = backStackEntry.arguments?.getString("productId") ?: ""
 //            UpdateProductScreen(navController, productId)
         }
     }
+}
 
