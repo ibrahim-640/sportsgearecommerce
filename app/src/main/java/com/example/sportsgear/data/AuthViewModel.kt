@@ -7,6 +7,7 @@ import androidx.navigation.NavController
 import com.example.sportsgear.models.UserModel
 import com.example.sportsgear.navigation.ROUTE_HOME
 import com.example.sportsgear.navigation.ROUTE_LOGIN
+import com.example.sportsgear.navigation.ROUTE_STARTER
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class AuthViewModel : ViewModel(){
@@ -78,7 +79,7 @@ class AuthViewModel : ViewModel(){
                 if (task.isSuccessful){
 
                     Toast.makeText(context,"User Successfully logged in",Toast.LENGTH_LONG).show()
-                    navController.navigate(ROUTE_HOME)
+                    navController.navigate(ROUTE_STARTER)
                 }else{
                     _errorMessage.value = task.exception?.message
 
