@@ -26,7 +26,7 @@ class ProductRepository {
         }
     }
 
-//    fun viewProduct(productId: String): ProductModel? {
+//   fun viewProduct(productId: String): ProductModel? {
 //        return try {
 //            val document = productsCollection.document(productId).get().await()
 //            document.toObject(ProductModel::class.java)?.copy(productId = document.id)

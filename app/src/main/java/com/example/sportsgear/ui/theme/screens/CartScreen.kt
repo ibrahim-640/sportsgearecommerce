@@ -19,9 +19,7 @@ fun CartScreen(navController: NavHostController) {
     val cartItems = listOf(
         CartItem("Footwear", "Nike Running Shoes", 2, 120.0, R.drawable.img),
         CartItem("Apparel", "Adidas T-Shirt", 1, 35.0, R.drawable.img),
-        CartItem("Accessories", "Fitness Watch", 1, 80.0, R.drawable.img),
         CartItem("Equipment", "Yoga Mat", 1, 25.0, R.drawable.img),
-        CartItem("Offers", "Discounted Headband", 3, 5.0, R.drawable.img),
         CartItem("New Arrivals", "Puma Jacket", 1, 90.0, R.drawable.img)
     )
 

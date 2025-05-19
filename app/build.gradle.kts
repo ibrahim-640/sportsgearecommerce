@@ -62,6 +62,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.13.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("androidx.navigation:navigation-compose:2.7.1")
+    implementation ("com.google.firebase:firebase-storage-ktx:20.2.0")
     implementation("io.coil-kt:coil-compose:2.2.2")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.6.4")
     implementation ("com.google.firebase:firebase-firestore-ktx")
