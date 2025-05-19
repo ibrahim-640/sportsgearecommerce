@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.sportsgear.data.ProductViewModel
+import com.example.sportsgear.ui.screens.UpdateProductScreen
 import com.example.sportsgear.ui.screens.screens.AddProductScreen
 import com.example.sportsgear.ui.screens.screens.ViewProductsScreen
 import com.example.sportsgear.ui.theme.screens.CartScreen
@@ -50,12 +51,12 @@ fun AppNavHost(navController:NavHostController= rememberNavController(),startDes
         composable(ROUTE_CART) {
             CartScreen(navController)
 
-
-
-//        composable("$ROUTE_UPDATE_PRODUCT/{productId}") { backStackEntry ->
-//            val productId = backStackEntry.arguments?.getString("productId") ?: ""
-//            UpdateProductScreen(navController, productId)
+        }
+        composable("$ROUTE_UPDATE_PRODUCT/{productId}") { backStackEntry ->
+                val productId = backStackEntry.arguments?.getString("productId") ?: ""
+                UpdateProductScreen(navController, productId)
+            }
         }
     }
-}
+
 
