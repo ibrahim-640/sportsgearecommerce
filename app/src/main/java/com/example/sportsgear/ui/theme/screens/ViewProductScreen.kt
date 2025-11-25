@@ -1,4 +1,5 @@
 package com.example.sportsgear.ui.screens.screens
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -6,10 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,29 +17,35 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
-import com.example.sportsgear.models.ProductModel
-import com.example.sportsgear.navigation.ROUTE_UPDATE_PRODUCT
+import com.example.sportsgear.data.CartViewModel
 import com.example.sportsgear.data.ProductViewModel
+import com.example.sportsgear.models.Product
+import com.example.sportsgear.navigation.ROUTE_UPDATE_PRODUCT
 
 val Maroon = Color(0xFF800000)
 val MaroonDark = Color(0xFF4B0000)
 val MaroonLight = Color(0xFFB22222)
 
 @Composable
-fun ViewProductsScreen(navController: NavHostController) {
+fun ViewProductsScreen(
+    navController: NavHostController,
+    userId: String,
+    cartViewModel: CartViewModel,
+    productViewModel: ProductViewModel = viewModel()
+) {
     val context = LocalContext.current
-    val productRepository = ProductViewModel()
 
-    val emptyProductState = remember {
-        mutableStateOf(ProductModel("", "", "", "", "", ""))
-    }
-    val productListState = remember {
-        mutableStateListOf<ProductModel>()
-    }
+    // ✅ Collect products from the ViewModel in real time
+    val productList by productViewModel.productList.collectAsState()
 
-    val products = productRepository.viewProducts(emptyProductState, productListState, context)
+    // ✅ Load all products once (this listens for live changes automatically)
+    LaunchedEffect(Unit) {
+        productViewModel.fetchProducts()
+
+    }
 
     Column(
         modifier = Modifier
@@ -51,19 +55,32 @@ fun ViewProductsScreen(navController: NavHostController) {
     ) {
         Text(
             text = "All Products",
-            fontSize = 30.sp,
+            fontSize = 28.sp,
             fontFamily = FontFamily.SansSerif,
-            color = MaroonDark
+            color = MaroonDark,
+            fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(20.dp))
 
-        LazyColumn {
-            items(products) { product ->
-                ProductItem(
-                    product = product,
-                    navController = navController,
-                    productRepository = productRepository
-                )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (productList.isEmpty()) {
+            Text(
+                text = "No Products Found",
+                color = Color.Gray,
+                fontSize = 18.sp,
+                fontFamily = FontFamily.SansSerif
+            )
+        } else {
+            LazyColumn {
+                items(productList) { product ->
+                    ProductItem(
+                        product = product,
+                        navController = navController,
+                        productViewModel = productViewModel,
+                        userId = userId,
+                        cartViewModel = cartViewModel
+                    )
+                }
             }
         }
     }
@@ -71,43 +88,66 @@ fun ViewProductsScreen(navController: NavHostController) {
 
 @Composable
 fun ProductItem(
-    product: ProductModel,
+    product: Product,
     navController: NavHostController,
-    productRepository: ProductViewModel
+    productViewModel: ProductViewModel,
+    userId: String,
+    cartViewModel: CartViewModel
 ) {
-    val context = LocalContext.current
-
     Card(
         modifier = Modifier
             .padding(10.dp)
             .fillMaxWidth()
-            .height(240.dp),
+            .height(320.dp),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = Maroon)
     ) {
-        Row {
-            Column {
-                AsyncImage(
-                    model = product.imageUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .width(180.dp)
-                        .height(140.dp)
-                        .padding(10.dp)
-                )
+        Row(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // ✅ Product image
+            AsyncImage(
+                model = product.imageUrl,
+                contentDescription = product.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .width(180.dp)
+                    .height(180.dp)
+                    .padding(10.dp)
+            )
 
-                Row(horizontalArrangement = Arrangement.SpaceEvenly) {
+            // ✅ Product details and actions
+            Column(
+                modifier = Modifier
+                    .padding(10.dp)
+                    .verticalScroll(rememberScrollState())
+                    .fillMaxHeight()
+            ) {
+                ProductDetail("Name", product.name)
+                ProductDetail("Price", product.price)
+                ProductDetail("Category", product.category)
+                ProductDetail("Description", product.description)
+                ProductDetail("Quantity", product.quantity)
+                ProductDetail("Value", product.value)
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val context = LocalContext.current
+
                     Button(
                         onClick = {
-                            productRepository.deleteProduct(context, product.productId, navController)
+                            productViewModel.deleteProduct(product.productId, context, navController)
                         },
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaroonDark)
                     ) {
-                        Text("REMOVE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("REMOVE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+
                     Button(
                         onClick = {
                             navController.navigate("$ROUTE_UPDATE_PRODUCT/${product.productId}")
@@ -115,168 +155,38 @@ fun ProductItem(
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaroonLight)
                     ) {
-                        Text("UPDATE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("UPDATE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            cartViewModel.addToCart(userId, product)
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                    ) {
+                        Text("ADD TO CART", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
-            }
-
-            Column(
-                modifier = Modifier
-                    .padding(10.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text("PRODUCT NAME", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(product.name, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-
-                Text("PRICE", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(product.price, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-
-                Text("CATEGORY", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(product.category, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-
-                Text("DESCRIPTION", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(product.description, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
-//package com.example.sportsgear.ui.screens.screens
-//import androidx.compose.foundation.layout.*
-//import androidx.compose.foundation.lazy.LazyColumn
-//import androidx.compose.foundation.lazy.items
-//import androidx.compose.foundation.rememberScrollState
-//import androidx.compose.foundation.shape.RoundedCornerShape
-//import androidx.compose.foundation.verticalScroll
-//import androidx.compose.material3.*
-//import androidx.compose.runtime.Composable
-//import androidx.compose.runtime.mutableStateListOf
-//import androidx.compose.runtime.mutableStateOf
-//import androidx.compose.runtime.remember
-//import androidx.compose.ui.Alignment
-//import androidx.compose.ui.Modifier
-//import androidx.compose.ui.graphics.Color
-//import androidx.compose.ui.layout.ContentScale
-//import androidx.compose.ui.platform.LocalContext
-//import androidx.compose.ui.text.font.FontFamily
-//import androidx.compose.ui.text.font.FontWeight
-//import androidx.compose.ui.unit.dp
-//import androidx.compose.ui.unit.sp
-//import androidx.navigation.NavHostController
-//import coil.compose.AsyncImage
-//import com.example.sportsgear.models.ProductModel
-//import com.example.sportsgear.navigation.ROUTE_UPDATE_PRODUCT
-//import com.example.sportsgear.data.ProductViewModel
-//
-//
-//@Composable
-//fun ViewProductsScreen(navController: NavHostController) {
-//    val context = LocalContext.current
-//  val productRepository = ProductViewModel()
-//
-//    val emptyProductState = remember {
-//        mutableStateOf(ProductModel("", "", "", "", "", ""))
-//    }
-//    val productListState = remember {
-//        mutableStateListOf<ProductModel>()
-//    }
-//
-//   val products = productRepository.viewProducts(emptyProductState, productListState, context)
-//
-//    Column(
-//        modifier = Modifier
-//            .fillMaxSize()
-//            .padding(10.dp),
-//        horizontalAlignment = Alignment.CenterHorizontally
-//    ) {
-//        Text(
-//            text = "All Products",
-//            fontSize = 30.sp,
-//            fontFamily = FontFamily.SansSerif,
-//            color = Color.Black
-//        )
-//        Spacer(modifier = Modifier.height(20.dp))
-//
-//        LazyColumn {
-//            items(products) { product ->
-//                ProductItem(
-//                    product = product,
-//                    navController = navController,
-//                    productRepository = productRepository
-//                )
-//            }
-//        }
-//    }
-//}
-//
-//@Composable
-//fun ProductItem(
-//    product: ProductModel,
-//    navController: NavHostController,
-//    productRepository: ProductViewModel
-//) {
-//    val context = LocalContext.current
-//
-//    Card(
-//        modifier = Modifier
-//            .padding(10.dp)
-//            .fillMaxWidth()
-//            .height(220.dp),
-//        shape = MaterialTheme.shapes.medium,
-//        colors = CardDefaults.cardColors(containerColor = Color.Gray)
-//    ) {
-//        Row {
-//            Column {
-//                AsyncImage(
-//                    model = product.imageUri,
-//                    contentDescription = null,
-//                    contentScale = ContentScale.Crop,
-//                    modifier = Modifier
-//                        .width(180.dp)
-//                        .height(140.dp)
-//                        .padding(10.dp)
-//                )
-//
-//                Row(horizontalArrangement = Arrangement.SpaceEvenly) {
-//                    Button(
-//                        onClick = {
-//                            productRepository.deleteProduct(context, product.productId, navController)
-//                        },
-//                        shape = RoundedCornerShape(10.dp),
-//                        colors = ButtonDefaults.buttonColors(Color.Red)
-//                    ) {
-//                        Text("REMOVE", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-//                    }
-//                    Spacer(modifier = Modifier.width(8.dp))
-//                    Button(
-//                        onClick = {
-//                            navController.navigate("$ROUTE_UPDATE_PRODUCT/${product.productId}")
-//                        },
-//                        shape = RoundedCornerShape(10.dp),
-//                        colors = ButtonDefaults.buttonColors(Color.Green)
-//                    ) {
-//                        Text("UPDATE", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-//                    }
-//                }
-//            }
-//
-//            Column(
-//                modifier = Modifier
-//                    .padding(10.dp)
-//                    .verticalScroll(rememberScrollState())
-//            ) {
-//                Text("PRODUCT NAME", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-//                Text(product.name, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-//
-//                Text("PRICE", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-//                Text(product.price, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-//
-//                Text("CATEGORY", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-//                Text(product.category, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-//
-//                Text("DESCRIPTION", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-//                Text(product.description, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-//            }
-//        }
-//    }
-//}
+@Composable
+fun ProductDetail(label: String, value: String) {
+    Column(modifier = Modifier.padding(bottom = 4.dp)) {
+        Text(
+            text = label.uppercase(),
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = if (value.isNotEmpty()) value else "N/A",
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}

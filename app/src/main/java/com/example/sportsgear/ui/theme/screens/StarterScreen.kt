@@ -43,7 +43,7 @@ fun StartScreen(navController: NavController){
     ){
 
         Text(
-            text = "HarakaMall",
+            text = "MichezoMall",
             fontSize = 20.sp
         )
 

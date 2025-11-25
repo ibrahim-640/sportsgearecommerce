@@ -4,5 +4,6 @@ data class UserModel(
     var lastname: String="",
     var email: String="",
     var password: String="",
-    var userId: String=""
+    var userId: String="",
+    val isAdmin: Boolean = false
 )

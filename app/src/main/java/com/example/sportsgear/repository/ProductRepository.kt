@@ -1,45 +1,104 @@
 package com.example.sportsgear.repository
 
-import com.example.sportsgear.models.ProductModel
-import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.tasks.await
+import android.content.Context
+import androidx.compose.runtime.MutableState
+import com.example.sportsgear.models.Product
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.ValueEventListener
 
 class ProductRepository {
-    private val firestore = FirebaseFirestore.getInstance()
-    private val productsCollection = firestore.collection("products")
 
-    fun addProduct(product: ProductModel, onResult: (Boolean) -> Unit) {
-        productsCollection.add(product)
-            .addOnCompleteListener { task ->
-                onResult(task.isSuccessful)
-            }
-    }
+    private val database: DatabaseReference =
+        FirebaseDatabase.getInstance().getReference("Products")
 
-    suspend fun getProducts(): List<ProductModel> {
-        return try {
-            val snapshot = productsCollection.get().await()
-            snapshot.documents.mapNotNull { document ->
-                document.toObject(ProductModel::class.java)?.copy(productId = document.id)
-            }
-        } catch (e: Exception) {
-            emptyList()
+    // ✅ Add product
+    fun addProduct(product: Product, onResult: (Boolean) -> Unit) {
+        val productId = database.push().key
+        if (productId != null) {
+            val productWithId = product.copy(productId = productId)
+            database.child(productId).setValue(productWithId)
+                .addOnCompleteListener { task ->
+                    onResult(task.isSuccessful)
+                }
+        } else {
+            onResult(false)
         }
     }
 
-//   fun viewProduct(productId: String): ProductModel? {
-//        return try {
-//            val document = productsCollection.document(productId).get().await()
-//            document.toObject(ProductModel::class.java)?.copy(productId = document.id)
-//        } catch (e: Exception) {
-//            null
-//        }
-//    }
+    // ✅ Get all products (for ViewModel)
+    fun getAllProducts(
+        onSuccess: (List<Product>) -> Unit,
+        onEmpty: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        database.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val products = snapshot.children.mapNotNull { data ->
+                    data.getValue(Product::class.java)?.copy(productId = data.key ?: "")
+                }
+                if (products.isEmpty()) {
+                    onEmpty()
+                } else {
+                    onSuccess(products)
+                }
+            }
 
+            override fun onCancelled(error: DatabaseError) {
+                onError(error.message)
+            }
+        })
+    }
+
+    // ✅ View single product by ID
+    fun getProductById(productId: String, onResult: (Product?) -> Unit) {
+        database.child(productId).get().addOnSuccessListener { snapshot ->
+            if (snapshot.exists()) {
+                val product = snapshot.getValue(Product::class.java)?.copy(productId = productId)
+                onResult(product)
+            } else {
+                onResult(null)
+            }
+        }.addOnFailureListener {
+            onResult(null)
+        }
+    }
+
+    // ✅ Delete product
     fun deleteProduct(productId: String, onResult: (Boolean) -> Unit) {
-        productsCollection.document(productId)
-            .delete()
+        database.child(productId).removeValue()
             .addOnCompleteListener { task ->
                 onResult(task.isSuccessful)
+            }
+    }
+
+    // ✅ Optional: Used by View screens with MutableState
+    fun viewProducts(
+        emptyProductState: MutableState<Product>,
+        productListState: MutableState<List<Product>>,
+        context: Context
+    ) {
+        database.get()
+            .addOnSuccessListener { snapshot ->
+                val products = snapshot.children.mapNotNull { data ->
+                    data.getValue(Product::class.java)?.copy(productId = data.key ?: "")
+                }
+                productListState.value = products
+
+                if (products.isEmpty()) {
+                    emptyProductState.value = Product(
+                        productId = "",
+                        name = "No Products Found",
+                        price = "",
+                        imageUrl = "",
+                        category = ""
+                    )
+                }
+            }
+            .addOnFailureListener {
+                // Optional: Log or toast error
             }
     }
 }

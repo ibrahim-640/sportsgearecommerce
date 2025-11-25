@@ -1,4 +1,5 @@
 package com.example.sportsgear.ui.screens
+
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,17 +20,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.sportsgear.R
 import com.example.sportsgear.data.ProductViewModel
-import com.example.sportsgear.models.ProductModel
+import com.example.sportsgear.models.Product
 import com.example.sportsgear.ui.screens.screens.CustomMaroon
 import com.google.firebase.database.*
 
 @Composable
-fun UpdateProductScreen(navController: NavController, productId: String) {
+fun UpdateProductScreen(
+    navController: NavController,
+    productId: String,
+    productViewModel: ProductViewModel
+) {
     val imageUri = rememberSaveable { mutableStateOf<Uri?>(null) }
     var existingImageUrl by remember { mutableStateOf("") }
 
@@ -41,24 +45,23 @@ fun UpdateProductScreen(navController: NavController, productId: String) {
     var price by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var isOnOffer by remember { mutableStateOf(false) } // ✅ new state
 
-    val productViewModel: ProductViewModel = viewModel()
     val context = LocalContext.current
     val currentDataRef = FirebaseDatabase.getInstance().getReference("Products/$productId")
 
-    // Fetch product data
+    // ✅ Fetch product data from Firebase
     DisposableEffect(Unit) {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val product = snapshot.getValue(ProductModel::class.java)
+                val product = snapshot.getValue(Product::class.java)
                 product?.let {
                     name = it.name
                     price = it.price.toString()
                     category = it.category
-                    description = it.description
-                    existingImageUrl = it.imageUri
-
-
+                    description = it.description ?: ""
+                    existingImageUrl = it.imageUrl ?: ""
+                    isOnOffer = it.isOnOffer // ✅ populate offer status
                 }
             }
 
@@ -71,7 +74,7 @@ fun UpdateProductScreen(navController: NavController, productId: String) {
         onDispose { currentDataRef.removeEventListener(listener) }
     }
 
-    // UI
+    // ✅ UI Layout
     Column(
         modifier = Modifier
             .padding(10.dp)
@@ -94,7 +97,13 @@ fun UpdateProductScreen(navController: NavController, productId: String) {
             )
         }
 
-        Card(shape = CircleShape, modifier = Modifier.padding(10.dp).size(200.dp)) {
+        // Product Image
+        Card(
+            shape = CircleShape,
+            modifier = Modifier
+                .padding(10.dp)
+                .size(200.dp)
+        ) {
             AsyncImage(
                 model = imageUri.value ?: existingImageUrl.ifEmpty { R.drawable.img },
                 contentDescription = null,
@@ -138,6 +147,21 @@ fun UpdateProductScreen(navController: NavController, productId: String) {
             singleLine = false
         )
 
+        // ✅ Offer Checkbox
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp)
+        ) {
+            Checkbox(
+                checked = isOnOffer,
+                onCheckedChange = { isOnOffer = it }
+            )
+            Text(text = "Mark as Offer / Promotion")
+        }
+
+        // Pick Image Button
         Button(
             onClick = { launcher.launch("image/*") },
             colors = ButtonDefaults.buttonColors(containerColor = CustomMaroon)
@@ -145,6 +169,9 @@ fun UpdateProductScreen(navController: NavController, productId: String) {
             Text("Pick Image", color = Color.White)
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Navigation and Update Buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -158,6 +185,7 @@ fun UpdateProductScreen(navController: NavController, productId: String) {
             Button(onClick = {
                 val priceDouble = price.toDoubleOrNull()
                 if (priceDouble != null) {
+                    // ✅ Include offer flag in update
                     productViewModel.updateProduct(
                         context = context,
                         navController = navController,
@@ -167,9 +195,9 @@ fun UpdateProductScreen(navController: NavController, productId: String) {
                         description = description,
                         imageUri = imageUri.value,
                         productId = productId,
-                        oldImageUrl = existingImageUrl // ✅ FIXED
+                        oldImageUrl = existingImageUrl,
+                        isOnOffer = isOnOffer // ✅ pass offer flag
                     )
-
                 } else {
                     Toast.makeText(context, "Invalid price. Please enter a numeric value.", Toast.LENGTH_SHORT).show()
                 }
