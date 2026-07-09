@@ -1,5 +1,4 @@
 package com.example.sportsgear.ui.screens
-
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -18,10 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import com.example.sportsgear.data.OrderViewModel
 import com.example.sportsgear.data.PaymentViewModel
 import com.example.sportsgear.navigation.ROUTE_SUCCESS
-import com.example.sportsgear.ui.theme.screens.CustomMaroon
+import com.example.sportsgear.ui.theme.Maroon
 
 val MpesaGreen = Color(0xFF34B233)
 
@@ -30,22 +28,24 @@ val MpesaGreen = Color(0xFF34B233)
 fun PaymentScreen(
     navController: NavHostController,
     amount: String,
-    phone: String, // Changed from paymentMethod to phone (consistent with CheckoutScreen)
-    paymentViewModel: PaymentViewModel = viewModel(),
-    orderViewModel: OrderViewModel = viewModel()
+    phone: String,
+    paymentViewModel: PaymentViewModel = viewModel()
+    // ✅ FIX — orderViewModel parameter removed. It's no longer needed here;
+    // SuccessScreen (wired separately in AppNavHost) owns order creation now.
 ) {
     val context = LocalContext.current
 
-    // Observe ViewModel states
     val isProcessing by paymentViewModel.isProcessing
     val paymentSuccess by paymentViewModel.paymentSuccess
 
-    // Navigate when payment succeeds
     LaunchedEffect(paymentSuccess) {
         if (paymentSuccess) {
             Toast.makeText(context, "Payment Successful!", Toast.LENGTH_SHORT).show()
-            navController.navigate("$ROUTE_SUCCESS/$amount") {
-                popUpTo(0) { inclusive = true } // Clear back stack
+            // ✅ FIX — was "$ROUTE_SUCCESS/$amount", missing the required {method}
+            // segment AppNavHost's route declares. This crashed immediately
+            // after every successful payment.
+            navController.navigate("$ROUTE_SUCCESS/$amount/M-Pesa") {
+                popUpTo(0) { inclusive = true }
             }
         }
     }
@@ -65,7 +65,7 @@ fun PaymentScreen(
                         Text("M-Pesa Payment", color = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CustomMaroon)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Maroon)
             )
         }
     ) { paddingValues ->
@@ -77,18 +77,14 @@ fun PaymentScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             if (isProcessing) {
-                // Processing State
                 ProcessingPaymentState(amount = amount, phone = phone)
             } else if (paymentSuccess) {
-                // Success State (briefly shown before navigation)
                 PaymentSuccessState()
             } else {
-                // Payment Form State
                 PaymentFormState(
                     amount = amount,
                     phone = phone,
                     paymentViewModel = paymentViewModel,
-                    orderViewModel = orderViewModel,
                     context = context
                 )
             }
@@ -115,7 +111,7 @@ fun ProcessingPaymentState(amount: String, phone: String) {
             "Processing M-Pesa Payment",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = CustomMaroon
+            color = Maroon
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -159,7 +155,7 @@ fun PaymentSuccessState() {
             "Payment Successful!",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            color = CustomMaroon
+            color = Maroon
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -175,26 +171,22 @@ fun PaymentFormState(
     amount: String,
     phone: String,
     paymentViewModel: PaymentViewModel,
-    orderViewModel: OrderViewModel,
     context: android.content.Context
+    // ✅ FIX — orderViewModel param removed (unused now)
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // Payment Summary Card
         PaymentSummaryCard(amount = amount, phone = phone)
-
-        // M-Pesa Instructions Card
         MpesaInstructionsCard()
-
         Spacer(modifier = Modifier.weight(1f))
-
-        // Payment Button
         Button(
             onClick = {
                 paymentViewModel.selectPaymentMethod("M-Pesa")
-                paymentViewModel.initiatePayment(context, orderViewModel)
+                // ✅ FIX — amount and phone now passed explicitly, fixing both
+                // the wrong-total bug and the always-empty-phone bug.
+                paymentViewModel.initiatePayment(context, amount, phone)
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -211,7 +203,6 @@ fun PaymentFormState(
             )
         }
 
-        // Security Notice
         Text(
             text = "🔒 Secure M-Pesa Transaction • Your payment is protected",
             color = Color.Gray,
@@ -235,7 +226,7 @@ fun PaymentSummaryCard(amount: String, phone: String) {
                 "Payment Summary",
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
-                color = CustomMaroon
+                color = Maroon
             )
             Spacer(modifier = Modifier.height(16.dp))
             SummaryRow("Total Amount", "Ksh $amount")
@@ -244,7 +235,7 @@ fun PaymentSummaryCard(amount: String, phone: String) {
             Divider(
                 modifier = Modifier.padding(vertical = 12.dp),
                 thickness = 1.dp,
-                color = CustomMaroon.copy(alpha = 0.2f)
+                color = Maroon.copy(alpha = 0.2f)
             )
             Text(
                 "You will receive an STK Push on the phone number above",
@@ -321,7 +312,7 @@ fun SummaryRow(label: String, value: String) {
             value,
             fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp,
-            color = CustomMaroon
+            color = Maroon
         )
     }
 }

@@ -23,4 +23,11 @@ const val ROUTE_PRODUCT_DETAIL = "product_detail/{productId}"
 fun getCategoryRoute(categoryName: String): String {
     return "category/$categoryName"
 }
+// in your navigation routes file, next to getCategoryRoute
+fun getProductDetailRoute(productId: String): String {
+    return "product_detail/$productId"
+}
+fun getEditCartProductRoute(productId: String): String {
+    return "editcartproduct/$productId"
+}
 

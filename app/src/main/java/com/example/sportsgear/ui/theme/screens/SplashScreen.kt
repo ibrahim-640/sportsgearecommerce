@@ -36,8 +36,8 @@ fun SplashScreen(onNavigateToNext: () -> Unit){
         }
     }
 }
-//@Preview(showBackground = true, showSystemUi = true)
-//@Composable
-//fun SplashScreenPreview(){
-//    SplashScreen()
-//}
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SplashScreenPreview(){
+    SplashScreen(onNavigateToNext = {})
+}

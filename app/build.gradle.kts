@@ -1,10 +1,17 @@
+import java.util.Properties // ✅ ADD 1 — must be at the very top, before anything else
+
+// ✅ ADD 2 — reads local.properties at build time
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.gms.google.services)
-
-
 }
 
 android {
@@ -19,6 +26,36 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // ✅ ADD 3 — injects credentials from local.properties into BuildConfig
+        // These become accessible as BuildConfig.MPESA_CONSUMER_KEY etc.
+        // anywhere in your app code at runtime, without ever appearing
+        // in source code or version control.
+        buildConfigField(
+            "String",
+            "MPESA_CONSUMER_KEY",
+            "\"${localProperties.getProperty("MPESA_CONSUMER_KEY", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "MPESA_CONSUMER_SECRET",
+            "\"${localProperties.getProperty("MPESA_CONSUMER_SECRET", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "MPESA_PASSKEY",
+            "\"${localProperties.getProperty("MPESA_PASSKEY", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "MPESA_SHORTCODE",
+            "\"${localProperties.getProperty("MPESA_SHORTCODE", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "MPESA_CALLBACK_URL",
+            "\"${localProperties.getProperty("MPESA_CALLBACK_URL", "")}\""
+        )
     }
 
     buildTypes {
@@ -30,17 +67,22 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     kotlinOptions {
         jvmTarget = "11"
     }
+
     buildFeatures {
         compose = true
+        buildConfig = true // ✅ ADD — enables BuildConfig generation
     }
 }
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
@@ -64,9 +106,8 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation ("com.squareup.okhttp3:okhttp:4.9.3")
-    implementation ("androidx.compose.material:material-icons-extended")
-
+    implementation("com.squareup.okhttp3:okhttp:4.9.3")
+    implementation("androidx.compose.material:material-icons-extended")
 
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")

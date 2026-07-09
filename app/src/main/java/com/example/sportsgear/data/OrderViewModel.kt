@@ -1,16 +1,15 @@
 package com.example.sportsgear.data
 
-import android.content.Context
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.sportsgear.models.CartItem
 import com.example.sportsgear.models.Order
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -23,83 +22,104 @@ class OrderViewModel : ViewModel() {
     private val _orders = mutableStateListOf<Order>()
     val orders: List<Order> = _orders
 
-    init {
-        checkAndFetchOrders() // ✅ Automatically fetch correct orders based on user role
+    // ✅ NEW — was missing entirely. OrderHistoryScreen had no way to show a
+    // spinner, so it briefly flashed "No past orders" before the Firebase
+    // listener returned real data — same class of bug fixed earlier in CartScreen.
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    // ✅ NEW — stored so listeners can actually be detached. Previously
+    // fetchUserOrders/fetchAllOrders attached listeners with no reference
+    // kept anywhere, and this class had no onCleared() at all — permanent leak.
+    private var ordersRef: DatabaseReference? = null
+    private var ordersListener: ValueEventListener? = null
+
+    // ✅ FIX — removed the old init { checkAndFetchOrders() } block entirely.
+    // It queried database.child("users")... (lowercase) while AuthViewModel
+    // writes to "Users" (capitalized) — a path that never had data, so the
+    // check always silently resolved to false. Worse, even with correct
+    // casing it would've been checking the WRONG field: the rest of the app's
+    // admin status comes from the dedicated Admin/{uid} node via
+    // AuthViewModel.isAdmin, not from a Users/{uid}/isAdmin field. Rather than
+    // re-deriving admin status here (a second, disagreeing source of truth),
+    // the caller now passes it in directly.
+    fun loadOrders(isAdmin: Boolean) {
+        if (isAdmin) fetchAllOrders() else fetchUserOrders()
     }
 
-    /** ✅ Decide whether to fetch all orders (admin) or only user orders */
-    private fun checkAndFetchOrders() {
-        val uid = auth.currentUser?.uid ?: return
-        database.child("users").child(uid).child("isAdmin")
-            .get()
-            .addOnSuccessListener { snapshot ->
-                val isAdmin = snapshot.getValue(Boolean::class.java) ?: false
-                if (isAdmin) {
-                    fetchAllOrders()
-                } else {
-                    fetchUserOrders()
-                }
-            }
-            .addOnFailureListener {
-                Log.e("OrderViewModel", "❌ Failed to determine user role: ${it.message}")
-            }
-    }
-
-    /** ✅ Fetch all orders for the logged-in user */
     private fun fetchUserOrders() {
         val uid = auth.currentUser?.uid ?: return
-        val userOrdersRef = database.child("Orders").child(uid)
+        detachListener()
+        _isLoading.value = true
 
-        userOrdersRef.addValueEventListener(object : ValueEventListener {
+        val ref = database.child("Orders").child(uid)
+        ordersRef = ref
+        ordersListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 _orders.clear()
                 for (orderSnap in snapshot.children) {
-                    val order = orderSnap.getValue(Order::class.java)
-                    if (order != null) _orders.add(order)
+                    orderSnap.getValue(Order::class.java)?.let { _orders.add(it) }
                 }
+                _isLoading.value = false
                 Log.d("OrderViewModel", "✅ User orders fetched successfully")
             }
 
             override fun onCancelled(error: DatabaseError) {
+                _isLoading.value = false
                 Log.e("OrderViewModel", "❌ Failed to fetch user orders: ${error.message}")
             }
-        })
+        }
+        ref.addValueEventListener(ordersListener!!)
     }
 
-    /** ✅ Fetch all orders for admin dashboard */
     private fun fetchAllOrders() {
-        val allOrdersRef = database.child("Orders")
+        detachListener()
+        _isLoading.value = true
 
-        allOrdersRef.addValueEventListener(object : ValueEventListener {
+        val ref = database.child("Orders")
+        ordersRef = ref
+        ordersListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 _orders.clear()
                 for (userSnap in snapshot.children) {
                     for (orderSnap in userSnap.children) {
-                        val order = orderSnap.getValue(Order::class.java)
-                        if (order != null) _orders.add(order)
+                        orderSnap.getValue(Order::class.java)?.let { _orders.add(it) }
                     }
                 }
+                _isLoading.value = false
                 Log.d("OrderViewModel", "✅ Admin fetched all orders successfully")
             }
 
             override fun onCancelled(error: DatabaseError) {
+                _isLoading.value = false
                 Log.e("OrderViewModel", "❌ Failed to fetch all orders: ${error.message}")
             }
-        })
+        }
+        ref.addValueEventListener(ordersListener!!)
     }
 
-    /** ✅ Create new order (normal users only, after payment success) */
+    private fun detachListener() {
+        ordersRef?.let { ref -> ordersListener?.let { ref.removeEventListener(it) } }
+    }
+
+    /** Create new order, after payment success */
     fun createOrderFromSuccessScreen(
         userId: String,
         totalAmount: Double,
         paymentMethod: String,
-        orderNumber: String
+        orderNumber: String,
+        items: List<CartItem> = emptyList()
+        // ✅ FIX — was hardcoded to emptyList() at the call site with a
+        // "// Optional: attach cart items if needed" comment. Every order's
+        // item list was permanently empty, so OrderHistoryScreen's
+        // "Items:" section never showed anything. Now accepts the real
+        // cart snapshot — see SuccessScreen.kt, which now passes it in
+        // before clearing the cart.
     ) {
         if (userId.isBlank()) return
 
         val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
 
-        // Create order object
         val order = Order(
             orderId = orderNumber,
             userId = userId,
@@ -108,15 +128,10 @@ class OrderViewModel : ViewModel() {
             timestamp = System.currentTimeMillis(),
             status = "Pending",
             paymentMethod = paymentMethod,
-            items = emptyList() // Optional: attach cart items if needed
+            items = items
         )
 
-        // Save to Firebase
-        val orderRef = FirebaseDatabase.getInstance().reference
-            .child("Orders")
-            .child(userId)
-            .child(orderNumber)
-
+        val orderRef = database.child("Orders").child(userId).child(orderNumber)
         orderRef.setValue(order)
             .addOnSuccessListener {
                 Log.d("OrderViewModel", "✅ Order saved successfully: $orderNumber")
@@ -126,33 +141,43 @@ class OrderViewModel : ViewModel() {
             }
     }
 
-    /** ✅ Notify all admins about new order */
+    /**
+     * Notify all admins about a new order.
+     * ✅ Fixed to read from the canonical "Admin" node instead of scanning
+     * "users" for an isAdmin == true field (same wrong-scheme problem as the
+     * old checkAndFetchOrders). NOTE: still not called anywhere — it was dead
+     * code before this fix too. Wiring it up would start writing real
+     * notification records and is a behavior change beyond what was asked
+     * for this round, so I've left it disconnected. Call notifyAdmins(order)
+     * inside createOrderFromSuccessScreen's onSuccess block if/when you want
+     * this live.
+     */
     private fun notifyAdmins(order: Order) {
-        val usersRef = database.child("users")
-        usersRef.get().addOnSuccessListener { snapshot ->
-            for (userSnap in snapshot.children) {
-                val isAdmin = userSnap.child("isAdmin").getValue(Boolean::class.java) ?: false
-                if (isAdmin) {
-                    val adminId = userSnap.key ?: continue
-                    val notifRef = database.child("notifications").child(adminId).push()
-
-                    val notification = mapOf(
-                        "title" to "🛍️ New Order Alert",
-                        "message" to "A new order (${order.orderId}) worth KES ${order.total} has been placed.",
-                        "timestamp" to System.currentTimeMillis()
-                    )
-
-                    notifRef.setValue(notification)
-                        .addOnSuccessListener {
-                            Log.d("OrderViewModel", "✅ Admin $adminId notified of order ${order.orderId}")
-                        }
-                        .addOnFailureListener { e ->
-                            Log.e("OrderViewModel", "❌ Failed to notify admin $adminId: ${e.message}")
-                        }
-                }
+        val adminRef = database.child("Admin")
+        adminRef.get().addOnSuccessListener { snapshot ->
+            for (adminSnap in snapshot.children) {
+                val adminId = adminSnap.key ?: continue
+                val notifRef = database.child("notifications").child(adminId).push()
+                val notification = mapOf(
+                    "title" to "🛍️ New Order Alert",
+                    "message" to "A new order (${order.orderId}) worth KES ${order.total} has been placed.",
+                    "timestamp" to System.currentTimeMillis()
+                )
+                notifRef.setValue(notification)
+                    .addOnSuccessListener {
+                        Log.d("OrderViewModel", "✅ Admin $adminId notified of order ${order.orderId}")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("OrderViewModel", "❌ Failed to notify admin $adminId: ${e.message}")
+                    }
             }
         }.addOnFailureListener { e ->
             Log.e("OrderViewModel", "❌ Failed to fetch admins: ${e.message}")
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        detachListener()
     }
 }

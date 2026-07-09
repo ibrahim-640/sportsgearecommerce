@@ -1,34 +1,47 @@
 package com.example.sportsgear.data
 
-import android.content.Context
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.sportsgear.models.CartItem
 import com.example.sportsgear.models.Product
-import com.example.sportsgear.network.MpesaRepository
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class CartViewModel : ViewModel() {
+
     private val database = FirebaseDatabase.getInstance().reference
-    private val mpesaRepository = MpesaRepository()
 
-    private val _cartItems = mutableStateOf<List<CartItem>>(emptyList())
-    val cartItems: State<List<CartItem>> = _cartItems
+    companion object {
+        const val FREE_SHIPPING_THRESHOLD = 5000.0
+        const val SHIPPING_COST = 250.0
+        const val TAX_RATE = 0.05
+    }
 
-    // Order summary states
+    // Cart items
+    private val _cartItems = MutableStateFlow<List<CartItem>>(emptyList())
+    val cartItems: StateFlow<List<CartItem>> = _cartItems.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    fun clearMessage() {
+        _message.value = null
+    }
+
+    // Order summary — this is now the SINGLE source of truth for subtotal/tax/
+    // shipping/total. CartScreen displays these directly, and CheckoutScreen
+    // now reads them too instead of recalculating independently.
     private val _subtotal = mutableStateOf(0.0)
     val subtotal: State<Double> = _subtotal
 
-    private val _shipping = mutableStateOf(250.0)
+    private val _shipping = mutableStateOf(SHIPPING_COST)
     val shipping: State<Double> = _shipping
 
     private val _tax = mutableStateOf(0.0)
@@ -37,123 +50,119 @@ class CartViewModel : ViewModel() {
     private val _total = mutableStateOf(0.0)
     val total: State<Double> = _total
 
-    // Payment and checkout states
-    private val _selectedPaymentMethod = mutableStateOf("M-Pesa")
-    val selectedPaymentMethod: State<String> = _selectedPaymentMethod
+    // ✅ REMOVED — selectedPaymentMethod, isProcessing, paymentSuccess,
+    // shippingName/Address/Phone state, updateShippingInfo, selectPaymentMethod,
+    // initiatePayment, initiateMpesaPayment, simulateCardPayment,
+    // simulatePayPalPayment, simulateBankTransfer, completeOrder.
+    // All of this was dead code — PaymentScreen only ever talks to
+    // PaymentViewModel, never to this class, for anything payment-related.
+    // PaymentViewModel is now the single owner of the payment flow, and
+    // SuccessScreen is the single place that writes the order record.
 
-    private val _isProcessing = mutableStateOf(false)
-    val isProcessing: State<Boolean> = _isProcessing
-
-    private val _paymentSuccess = mutableStateOf(false)
-    val paymentSuccess: State<Boolean> = _paymentSuccess
-
-    // Shipping information
-    private val _shippingName = mutableStateOf("")
-    val shippingName: State<String> = _shippingName
-
-    private val _shippingAddress = mutableStateOf("")
-    val shippingAddress: State<String> = _shippingAddress
-
-    private val _shippingPhone = mutableStateOf("")
-    val shippingPhone: State<String> = _shippingPhone
-
-    // === ADD THIS DEBUG FUNCTION ===
-    fun debugCartSetup() {
-        val user = FirebaseAuth.getInstance().currentUser
-        Log.d("DebugCart", "=== CART VIEWMODEL DEBUG ===")
-        Log.d("DebugCart", "📱 Using: Firebase Realtime Database")
-        Log.d("DebugCart", "👤 Current User: ${user?.uid ?: "NULL"}")
-        Log.d("DebugCart", "📊 Database URL: ${FirebaseDatabase.getInstance().reference}")
-
-        if (user != null) {
-            // Test database connection - ✅ FIXED PATH
-            database.child("Cart").child(user.uid).child("debug_connection").setValue(
-                mapOf("test" to true, "timestamp" to System.currentTimeMillis())
-            ).addOnSuccessListener {
-                Log.d("DebugCart", "✅ Database connection: SUCCESS")
-            }.addOnFailureListener { e ->
-                Log.e("DebugCart", "❌ Database connection: FAILED - ${e.message}")
-            }
-        }
-    }
-    // === END DEBUG FUNCTION ===
+    private var cartListener: ValueEventListener? = null
+    private var cartRef: DatabaseReference? = null
 
     // ------------------------- CART MANAGEMENT -------------------------
 
     fun addToCart(userId: String, product: Product) {
-        Log.d("DebugCart", "🔄 addToCart called:")
-        Log.d("DebugCart", "   User: $userId")
-        Log.d("DebugCart", "   Product: ${product.productId} - ${product.name}")
-
-        // ✅ FIXED PATH: "carts" → "Cart"
-        val cartRef = database.child("Cart").child(userId).child(product.productId)
-        cartRef.get().addOnSuccessListener { snapshot ->
-            val currentItem = snapshot.getValue(CartItem::class.java)
-            val newQuantity = (currentItem?.quantity ?: 0) + 1
-            val updatedItem = CartItem(
-                productId = product.productId,
-                name = product.name,
-                imageUrl = product.imageUrl,
-                price = product.price,
-                quantity = newQuantity,
-                category = product.category
-            )
-
-            Log.d("DebugCart", "📝 Writing to cart:")
-            Log.d("DebugCart", "   Path: Cart/$userId/${product.productId}") // ✅ Updated log
-            Log.d("DebugCart", "   Data: $updatedItem")
-
-            cartRef.setValue(updatedItem)
-                .addOnSuccessListener {
-                    Log.d("DebugCart", "✅ Successfully added to cart")
-                }
-                .addOnFailureListener { e ->
-                    Log.e("DebugCart", "❌ Failed to add to cart: ${e.message}")
-                }
+        if (userId.isBlank()) {
+            _message.value = "Please log in to add to cart"
+            return
         }
+
+        _isLoading.value = true
+        val cartItemRef = database.child("Cart").child(userId).child(product.productId)
+
+        cartItemRef.get()
+            .addOnSuccessListener { snapshot ->
+                val currentItem = snapshot.getValue(CartItem::class.java)
+                val newQuantity = (currentItem?.quantity ?: 0) + 1
+                val updatedItem = CartItem(
+                    productId = product.productId,
+                    name = product.name,
+                    imageUrl = product.imageUrl,
+                    price = product.price,
+                    quantity = newQuantity,
+                    category = product.category
+                )
+                cartItemRef.setValue(updatedItem)
+                    .addOnSuccessListener {
+                        _isLoading.value = false
+                        _message.value = "${product.name} added to cart"
+                    }
+                    .addOnFailureListener { e ->
+                        _isLoading.value = false
+                        _message.value = "Failed to add to cart"
+                        Log.e("CartViewModel", "Failed to add: ${e.message}")
+                    }
+            }
             .addOnFailureListener { e ->
-                Log.e("DebugCart", "❌ Failed to read cart: ${e.message}")
+                _isLoading.value = false
+                _message.value = "Failed to add to cart"
+                Log.e("CartViewModel", "Failed to read cart: ${e.message}")
             }
     }
 
     fun removeFromCart(userId: String, productId: String) {
-        // ✅ FIXED PATH: "carts" → "Cart"
-        database.child("Cart").child(userId).child(productId).removeValue()
+        database.child("Cart").child(userId).child(productId)
+            .removeValue()
+            .addOnFailureListener { e ->
+                _message.value = "Failed to remove item"
+                Log.e("CartViewModel", "Remove failed: ${e.message}")
+            }
     }
 
     fun loadCartItems(userId: String) {
-        // ✅ FIXED PATH: "carts" → "Cart"
+        if (userId.isBlank()) return
+
+        cartRef?.let { ref ->
+            cartListener?.let { listener ->
+                ref.removeEventListener(listener)
+            }
+        }
+
+        _isLoading.value = true
+
         val ref = database.child("Cart").child(userId)
-        ref.addValueEventListener(object : ValueEventListener {
+        cartRef = ref
+
+        cartListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val items = snapshot.children.mapNotNull { it.getValue(CartItem::class.java) }
+                val items = snapshot.children.mapNotNull {
+                    it.getValue(CartItem::class.java)
+                }
                 _cartItems.value = items
                 calculateTotals()
-                Log.d("DebugCart", "📥 Cart loaded: ${items.size} items")
+                _isLoading.value = false
+                Log.d("CartViewModel", "Cart loaded: ${items.size} items")
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Log.e("CartViewModel", "Failed to load cart: ${error.message}")
+                _isLoading.value = false
+                _message.value = "Failed to load cart"
+                Log.e("CartViewModel", "Load failed: ${error.message}")
             }
-        })
+        }
+
+        ref.addValueEventListener(cartListener!!)
     }
 
     fun clearCart(userId: String) {
-        // ✅ FIXED PATH: "carts" → "Cart"
-        val userCartRef = database.child("Cart").child(userId)
-        userCartRef.removeValue()
-            .addOnSuccessListener { _cartItems.value = emptyList(); calculateTotals() }
+        database.child("Cart").child(userId).removeValue()
+            .addOnSuccessListener {
+                _cartItems.value = emptyList()
+                calculateTotals()
+            }
             .addOnFailureListener { e ->
-                Log.e("CartViewModel", "❌ Failed to clear cart: ${e.message}")
+                _message.value = "Failed to clear cart"
+                Log.e("CartViewModel", "Clear failed: ${e.message}")
             }
     }
 
     fun updateQuantity(userId: String, productId: String, newQuantity: Int) {
         if (newQuantity < 1) return
-        // ✅ FIXED PATH: "carts" → "Cart"
-        val ref = database.child("Cart").child(userId).child(productId)
-
-        ref.child("quantity").setValue(newQuantity)
+        database.child("Cart").child(userId).child(productId)
+            .child("quantity").setValue(newQuantity)
             .addOnSuccessListener {
                 _cartItems.value = _cartItems.value.map { item ->
                     if (item.productId == productId) item.copy(quantity = newQuantity) else item
@@ -161,34 +170,54 @@ class CartViewModel : ViewModel() {
                 calculateTotals()
             }
             .addOnFailureListener { e ->
-                Log.e("CartViewModel", "❌ Failed to update quantity: ${e.message}")
+                _message.value = "Failed to update quantity"
+                Log.e("CartViewModel", "Update failed: ${e.message}")
             }
     }
 
-    // ✅ New function to update a cart product fully
-    fun updateCartProduct(userId: String, productId: String, updatedProduct: CartItem) {
-        // ✅ FIXED PATH: "carts" → "Cart"
-        val ref = database.child("Cart").child(userId).child(productId)
-        ref.setValue(updatedProduct)
+    fun updateCartProduct(
+        userId: String,
+        productId: String,
+        updatedProduct: CartItem,
+        onSuccess: () -> Unit = {}
+    ) {
+        database.child("Cart").child(userId).child(productId)
+            .setValue(updatedProduct)
             .addOnSuccessListener {
                 _cartItems.value = _cartItems.value.map { item ->
                     if (item.productId == productId) updatedProduct else item
                 }
                 calculateTotals()
+                _message.value = "Cart updated successfully"
+                onSuccess()
             }
             .addOnFailureListener { e ->
-                Log.e("CartViewModel", "❌ Failed to update product: ${e.message}")
+                _message.value = "Failed to update item"
+                Log.e("CartViewModel", "Update failed: ${e.message}")
             }
     }
+    // Add this function — exposes the existing cleanup logic
+// so AppNavHost can trigger it explicitly on logout
+    fun detachListener() {
+        cartRef?.let { ref ->
+            cartListener?.let { listener ->
+                ref.removeEventListener(listener)
+            }
+        }
+        cartRef = null
+        cartListener = null
+        _cartItems.value = emptyList()
+        _isLoading.value = false
+    }
 
-    // ------------------------- ORDER SUMMARY CALCULATION -------------------------
+    // ------------------------- ORDER SUMMARY -------------------------
 
     private fun calculateTotals() {
         val sub = _cartItems.value.sumOf {
             (it.price.toDoubleOrNull() ?: 0.0) * it.quantity
         }
-        val taxAmount = sub * 0.05 // 5% tax
-        val shippingCost = if (sub > 5000) 0.0 else 250.0
+        val taxAmount = sub * TAX_RATE
+        val shippingCost = if (sub > FREE_SHIPPING_THRESHOLD) 0.0 else SHIPPING_COST
         val totalAmount = sub + taxAmount + shippingCost
 
         _subtotal.value = sub
@@ -197,139 +226,14 @@ class CartViewModel : ViewModel() {
         _total.value = totalAmount
     }
 
-    // ------------------------- SHIPPING INFO -------------------------
+    // ------------------------- CLEANUP -------------------------
 
-    fun updateShippingInfo(name: String, address: String, phone: String) {
-        _shippingName.value = name
-        _shippingAddress.value = address
-        _shippingPhone.value = phone
-    }
-
-    // ------------------------- PAYMENT SELECTION -------------------------
-
-    fun selectPaymentMethod(method: String) {
-        _selectedPaymentMethod.value = method
-    }
-
-    // ------------------------- PAYMENT HANDLING -------------------------
-
-    fun initiatePayment(context: Context, orderViewModel: OrderViewModel) {
-        val method = _selectedPaymentMethod.value
-        _isProcessing.value = true
-        _paymentSuccess.value = false
-
-        when (method) {
-            "M-Pesa" -> initiateMpesaPayment(context, _shippingPhone.value, _total.value.toString(), orderViewModel)
-            "Credit/Debit Card" -> simulateCardPayment(context, _total.value.toString(), method, orderViewModel)
-            "PayPal" -> simulatePayPalPayment(context, _total.value.toString(), method, orderViewModel)
-            "Bank Transfer" -> simulateBankTransfer(context, _total.value.toString(), method, orderViewModel)
-        }
-    }
-
-    fun initiateMpesaPayment(
-        context: Context,
-        phoneNumber: String,
-        amount: String,
-        orderViewModel: OrderViewModel
-    ) {
-        viewModelScope.launch {
-            try {
-                val success = mpesaRepository.initiatePayment(phoneNumber, amount.toIntOrNull() ?: 1)
-
-                if (success) {
-                    showToast(context, "✅ M-Pesa payment initiated successfully!")
-                    completeOrder(context, amount, "M-Pesa", orderViewModel)
-                } else {
-                    showToast(context, "❌ Payment failed. Please try again.")
-                }
-            } catch (e: Exception) {
-                Log.e("CartViewModel", "M-Pesa Error: ${e.message}")
-                showToast(context, "⚠️ ${e.message}")
-            } finally {
-                _isProcessing.value = false
+    override fun onCleared() {
+        super.onCleared()
+        cartRef?.let { ref ->
+            cartListener?.let { listener ->
+                ref.removeEventListener(listener)
             }
-        }
-    }
-
-    private fun simulateCardPayment(
-        context: Context,
-        amount: String,
-        paymentMethod: String,
-        orderViewModel: OrderViewModel
-    ) {
-        viewModelScope.launch {
-            showToast(context, "💳 Processing card payment...")
-            kotlinx.coroutines.delay(2000)
-            showToast(context, "✅ Card payment successful!")
-            completeOrder(context, amount, paymentMethod, orderViewModel)
-        }
-    }
-
-    private fun simulatePayPalPayment(
-        context: Context,
-        amount: String,
-        paymentMethod: String,
-        orderViewModel: OrderViewModel
-    ) {
-        viewModelScope.launch {
-            showToast(context, "🌐 Redirecting to PayPal...")
-            kotlinx.coroutines.delay(2000)
-            showToast(context, "✅ PayPal payment confirmed!")
-            completeOrder(context, amount, paymentMethod, orderViewModel)
-        }
-    }
-
-    private fun simulateBankTransfer(
-        context: Context,
-        amount: String,
-        paymentMethod: String,
-        orderViewModel: OrderViewModel
-    ) {
-        viewModelScope.launch {
-            showToast(context, "🏦 Please complete bank transfer to finalize order.")
-            kotlinx.coroutines.delay(3000)
-            showToast(context, "✅ Bank transfer confirmed!")
-            completeOrder(context, amount, paymentMethod, orderViewModel)
-        }
-    }
-
-    // ------------------------- COMPLETE ORDER -------------------------
-
-    private fun completeOrder(
-        context: Context,
-        amount: String,
-        paymentMethod: String,
-        orderViewModel: OrderViewModel
-    ) {
-        val cartItemsList = _cartItems.value
-        if (cartItemsList.isNotEmpty()) {
-            val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-            val totalAmount = amount.toDoubleOrNull() ?: 0.0
-            val orderNumber = "SG-${(1000..9999).random()}" // Generate random order number
-
-            // Call OrderViewModel function
-            orderViewModel.createOrderFromSuccessScreen(
-                userId = userId,
-                totalAmount = totalAmount,
-                paymentMethod = paymentMethod,
-                orderNumber = orderNumber
-            )
-
-            // Clear cart after order - ✅ FIXED PATH: "carts" → "Cart"
-            clearCart(userId)
-
-            _paymentSuccess.value = true
-            showToast(context, "🛍️ Order placed successfully!")
-        } else {
-            showToast(context, "⚠️ Cart is empty!")
-        }
-    }
-
-    // ------------------------- UTILS -------------------------
-
-    private fun showToast(context: Context, message: String) {
-        viewModelScope.launch(Dispatchers.Main) {
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
 }

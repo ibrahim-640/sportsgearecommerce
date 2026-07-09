@@ -1,12 +1,11 @@
 package com.example.sportsgear.ui.theme.screens
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -16,11 +15,12 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.sportsgear.data.CartViewModel
 import com.example.sportsgear.data.OrderViewModel
-import com.example.sportsgear.models.Order
+import com.example.sportsgear.data.ProductViewModel
 import com.example.sportsgear.navigation.ROUTE_HOME
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SuccessScreen(
@@ -29,16 +29,32 @@ fun SuccessScreen(
     method: String,
     cartViewModel: CartViewModel,
     orderViewModel: OrderViewModel,
+    productViewModel: ProductViewModel // ✅ NEW — needed to decrement stock
+    // after a successful purchase. Previously nothing in the entire checkout
+    // flow ever touched product stock counts, so a product's "in stock"
+    // number never reflected real sales — two people could buy the last
+    // unit of something and both succeed.
 ) {
     val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-    val orderNumber = "SG-${(1000..9999).random()}"
-    val date = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date())
+    val orderNumber = remember { "SG-${(1000..9999).random()}" }
+    val date = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date()) }
 
-    // ✅ Save order to Firebase when screen is loaded
-    orderViewModel.createOrderFromSuccessScreen(userId, amount.toDoubleOrNull() ?: 0.0, method, orderNumber)
+    // ✅ NEW — snapshot the cart contents BEFORE clearing, so the order
+    // record actually saves what was bought (was being hardcoded to
+    // emptyList() before).
+    val cartItems by cartViewModel.cartItems.collectAsState()
 
-    // ✅ Clear the cart
-    cartViewModel.clearCart(userId)
+    LaunchedEffect(Unit) {
+        orderViewModel.createOrderFromSuccessScreen(
+            userId = userId,
+            totalAmount = amount.toDoubleOrNull() ?: 0.0,
+            paymentMethod = method,
+            orderNumber = orderNumber,
+            items = cartItems // ✅ NEW — real items, captured before clearCart runs below
+        )
+        productViewModel.decrementStockAfterPurchase(cartItems)
+        cartViewModel.clearCart(userId)
+    }
 
     Scaffold(
         topBar = {
@@ -58,7 +74,6 @@ fun SuccessScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ✅ Confirmation Icon
             Icon(
                 imageVector = Icons.Default.CheckCircle,
                 contentDescription = "Success",
@@ -68,7 +83,6 @@ fun SuccessScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ✅ Order Details Card
             Card(
                 shape = RoundedCornerShape(12.dp),
                 elevation = CardDefaults.cardElevation(6.dp),
@@ -92,7 +106,6 @@ fun SuccessScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ✅ Continue Shopping Button
             Button(
                 onClick = { navController.navigate(ROUTE_HOME) { popUpTo(0) } },
                 modifier = Modifier

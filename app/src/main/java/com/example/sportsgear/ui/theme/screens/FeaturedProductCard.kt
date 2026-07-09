@@ -1,5 +1,4 @@
 package com.example.sportsgear.ui.theme.screens
-
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,7 +30,7 @@ fun FeaturedProductCard(
     Card(
         modifier = modifier
             .width(220.dp)
-            .height(250.dp)
+            .height(260.dp)
             .clickable { onClick() }
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -72,7 +71,7 @@ fun FeaturedProductCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "$${product.price}",
+                    text = "ksh ${product.price}",
                     style = MaterialTheme.typography.titleMedium
                 )
                 Button(onClick = onAddToCart) {

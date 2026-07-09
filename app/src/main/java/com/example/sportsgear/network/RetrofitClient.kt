@@ -8,7 +8,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 object RetrofitClient {
 
     private const val SAFARICOM_BASE_URL = "https://sandbox.safaricom.co.ke/"
-    private const val NGROK_BASE_URL = "https://8c8d-102-214-157-197.ngrok-free.app/"
+    private const val NGROK_BASE_URL = "https://3bb23d464e21.ngrok-free.app/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

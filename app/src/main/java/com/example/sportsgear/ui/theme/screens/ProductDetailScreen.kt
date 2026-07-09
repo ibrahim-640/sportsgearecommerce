@@ -1,5 +1,5 @@
 package com.example.sportsgear.ui.theme.screens
-
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.sportsgear.models.Product
+import com.example.sportsgear.ui.theme.MaroonDark
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,9 +60,9 @@ fun ProductDetailScreen(
             )
 
             Text(
-                text = "₹${product.price}",
+                text = "ksh ${product.price}",
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF388E3C),
+                color = MaroonDark,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
 

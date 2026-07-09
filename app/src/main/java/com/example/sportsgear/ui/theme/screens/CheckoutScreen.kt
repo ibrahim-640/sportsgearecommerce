@@ -1,6 +1,4 @@
 package com.example.sportsgear.ui.theme.screens
-
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,7 +10,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,6 +17,8 @@ import androidx.navigation.NavHostController
 import com.example.sportsgear.data.CartViewModel
 import com.example.sportsgear.data.OrderViewModel
 import com.example.sportsgear.navigation.ROUTE_PAYMENT
+import com.example.sportsgear.ui.theme.Maroon
+import kotlinx.coroutines.launch
 
 val MpesaGreen = Color(0xFF34B233)
 
@@ -31,8 +30,20 @@ fun CheckoutScreen(
     navController: NavHostController,
     orderViewModel: OrderViewModel
 ) {
-    val context = LocalContext.current
-    val cartItems by cartViewModel.cartItems
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() } // ✅ FIX — replaces Toast
+
+    val cartItems by cartViewModel.cartItems.collectAsState()
+
+    // ✅ FIX — now reads the SAME totals CartScreen already shows the user,
+    // instead of recalculating independently with a different tax rate (16%
+    // vs CartViewModel's 5%) and a different shipping formula (city-based vs
+    // flat-rate + free-shipping threshold). One number, everywhere — Cart,
+    // Checkout, and the amount actually sent to M-Pesa, all match.
+    val subtotal by cartViewModel.subtotal
+    val tax by cartViewModel.tax
+    val shipping by cartViewModel.shipping
+    val total by cartViewModel.total
 
     // Form States
     var fullName by remember { mutableStateOf("") }
@@ -40,17 +51,12 @@ fun CheckoutScreen(
     var city by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
 
-    // Dynamic calculations based on cart items
-    val subtotal = cartItems.sumOf { it.price.toDouble() * it.quantity }
-    val shipping = calculateShipping(cartItems, city)
-    val tax = calculateTax(subtotal)
-    val total = subtotal + shipping + tax
-
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Checkout", color = Color.White) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CustomMaroon)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Maroon)
             )
         }
     ) { paddingValues ->
@@ -138,7 +144,6 @@ fun CheckoutScreen(
                 }
             }
 
-            // M-Pesa Instructions
             Text(
                 text = "You will receive an M-Pesa prompt on your phone to complete the payment",
                 fontSize = 14.sp,
@@ -148,7 +153,7 @@ fun CheckoutScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Order Summary - Now Dynamic
+            // Order Summary — now sourced from CartViewModel
             OrderSummarySection(
                 subtotal = subtotal,
                 shipping = shipping,
@@ -164,15 +169,13 @@ fun CheckoutScreen(
             Button(
                 onClick = {
                     if (fullName.isBlank() || address.isBlank() || city.isBlank() || phone.isBlank()) {
-                        Toast.makeText(
-                            context,
-                            "Please fill in all required fields",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        // ✅ FIX — Toast replaced with Snackbar, matching every other screen
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Please fill in all required fields")
+                        }
                     } else {
-                        val amountValue = "%.2f".format(total)
+                        val amountValue = "%.2f".format(total) // ✅ now the real cart total
                         val phoneValue = phone.trim()
-
                         navController.navigate("$ROUTE_PAYMENT/$amountValue/$phoneValue")
                     }
                 },
@@ -186,7 +189,6 @@ fun CheckoutScreen(
                 Text("Continue to M-Pesa Payment", color = Color.White, fontSize = 16.sp)
             }
 
-            // Help Text
             Text(
                 text = "You'll complete the M-Pesa payment in the next step",
                 fontSize = 12.sp,
@@ -221,19 +223,16 @@ fun OrderSummarySection(
             Text("Order Summary", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Spacer(Modifier.height(12.dp))
 
-            // Item count
             SummaryRow("Items", "$itemCount item${if (itemCount != 1) "s" else ""}")
             SummaryRow("Subtotal", "Ksh ${"%.2f".format(subtotal)}")
 
-            // Dynamic shipping based on location
-            val shippingText = if (city.isNotBlank()) {
-                "Shipping to $city"
-            } else {
-                "Shipping"
-            }
+            val shippingText = if (city.isNotBlank()) "Shipping to $city" else "Shipping"
             SummaryRow(shippingText, "Ksh ${"%.2f".format(shipping)}")
 
-            SummaryRow("Tax (${"%.0f".format((tax / subtotal) * 100)}%)", "Ksh ${"%.2f".format(tax)}")
+            // ✅ FIX — hardcoded to match CartViewModel.TAX_RATE (5%). The old
+            // (tax / subtotal) * 100 calculation would show "Tax (NaN%)" any
+            // time subtotal was 0 (e.g. briefly while the cart is still loading).
+            SummaryRow("Tax (5%)", "Ksh ${"%.2f".format(tax)}")
             Divider(Modifier.padding(vertical = 8.dp))
             SummaryRow("Total", "Ksh ${"%.2f".format(total)}", bold = true)
         }
@@ -255,26 +254,7 @@ fun SummaryRow(label: String, value: String, bold: Boolean = false) {
             value,
             fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
             fontSize = if (bold) 16.sp else 14.sp,
-            color = if (bold) CustomMaroon else Color.Black
+            color = if (bold) Maroon else Color.Black
         )
     }
-}
-
-// Dynamic calculation functions
-private fun calculateShipping(cartItems: List<com.example.sportsgear.models.CartItem>, city: String): Double {
-    val baseWeight = cartItems.sumOf { it.quantity } * 0.5 // Assume 0.5kg per item
-
-    // Different shipping rates based on location
-    return when {
-        city.contains("Nairobi", ignoreCase = true) -> 150.0
-        city.contains("Mombasa", ignoreCase = true) -> 250.0
-        city.contains("Kisumu", ignoreCase = true) -> 200.0
-        city.isNotBlank() -> 300.0 // Other cities
-        else -> 350.0 // Default/unknown location
-    }
-}
-
-private fun calculateTax(subtotal: Double): Double {
-    // Dynamic tax calculation (could be based on product categories in real app)
-    return subtotal * 0.16 // 16% VAT for Kenya
 }

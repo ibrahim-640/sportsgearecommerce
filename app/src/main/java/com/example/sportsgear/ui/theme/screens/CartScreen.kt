@@ -1,14 +1,13 @@
 package com.example.sportsgear.ui.theme.screens
 
-import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -16,77 +15,123 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavHostController
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import com.example.sportsgear.data.AuthViewModel
 import com.example.sportsgear.data.CartViewModel
-import com.example.sportsgear.data.OrderViewModel
+import com.example.sportsgear.models.CartItem
 import com.example.sportsgear.navigation.ROUTE_CHECKOUT
-
-val CustomMaroon = Color(0xFF800000)
+import com.example.sportsgear.ui.theme.Maroon
+import com.example.sportsgear.ui.theme.MaroonDark
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CartScreen(
-    userId: String,
+    navController: NavController,
     cartViewModel: CartViewModel,
-    navController: NavHostController,
-    orderViewModel: OrderViewModel = viewModel()
+    authViewModel: AuthViewModel // ✅ FIX — now passed in from AppNavHost, shares the
+    // same instance (and already-loaded cartItems) as Home, Checkout, etc.
 ) {
-    val context = LocalContext.current
-    val cartItems by cartViewModel.cartItems
+
+    val currentUser by authViewModel.currentUser.collectAsState()
+    val userId = currentUser?.uid ?: ""
+
+    val cartItems by cartViewModel.cartItems.collectAsState()
+    val isLoading by cartViewModel.isLoading.collectAsState()
+    val message by cartViewModel.message.collectAsState()
     val subtotal by cartViewModel.subtotal
     val tax by cartViewModel.tax
     val shipping by cartViewModel.shipping
     val total by cartViewModel.total
 
-    LaunchedEffect(Unit) {
-        cartViewModel.loadCartItems(userId)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    // ✅ REMOVED — loadCartItems is now called once, centrally, in AppNavHost
+    // on the shared cartViewModel instance. No need to reattach a listener here.
+
+    LaunchedEffect(message) {
+        message?.let {
+            snackbarHostState.showSnackbar(it)
+            cartViewModel.clearMessage()
+        }
     }
 
-    val screenWidth = LocalConfiguration.current.screenWidthDp
-
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.ShoppingCart,
-                            contentDescription = "Cart",
+                            contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Your Cart", color = Color.White)
+                        Text(
+                            "Your Cart",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CustomMaroon)
+                navigationIcon = {
+                    IconButton(onClick = { navController.navigateUp() }) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Maroon
+                )
             )
         }
     ) { paddingValues ->
-        if (cartItems.isEmpty()) {
-            EmptyCartState(modifier = Modifier.padding(paddingValues))
-        } else {
-            CartContent(
-                cartItems = cartItems,
-                userId = userId,
-                cartViewModel = cartViewModel,
-                subtotal = subtotal,
-                tax = tax,
-                shipping = shipping,
-                total = total,
-                navController = navController,
-                screenWidth = screenWidth,
-                paddingValues = paddingValues
-            )
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Maroon)
+                }
+            }
+
+            cartItems.isEmpty() -> {
+                EmptyCartState(modifier = Modifier.padding(paddingValues))
+            }
+
+            else -> {
+                CartContent(
+                    cartItems = cartItems,
+                    userId = userId,
+                    cartViewModel = cartViewModel,
+                    subtotal = subtotal,
+                    tax = tax,
+                    shipping = shipping,
+                    total = total,
+                    navController = navController,
+                    paddingValues = paddingValues
+                )
+            }
         }
     }
 }
@@ -96,29 +141,30 @@ fun EmptyCartState(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(Maroon.copy(alpha = 0.05f))
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
             Icons.Default.ShoppingCart,
-            contentDescription = "Empty Cart",
-            tint = CustomMaroon.copy(alpha = 0.5f),
+            contentDescription = null,
+            tint = Maroon.copy(alpha = 0.4f),
             modifier = Modifier.size(80.dp)
         )
         Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = "Your cart is empty",
-            fontSize = 24.sp,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
-            color = CustomMaroon,
+            color = MaroonDark,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Add some amazing sports gear to get started!",
-            fontSize = 16.sp,
-            color = Color.Gray,
+            text = "Add some sports gear to get started!",
+            fontSize = 15.sp,
+            color = MaroonDark.copy(alpha = 0.5f),
             textAlign = TextAlign.Center
         )
     }
@@ -126,24 +172,25 @@ fun EmptyCartState(modifier: Modifier = Modifier) {
 
 @Composable
 fun CartContent(
-    cartItems: List<com.example.sportsgear.models.CartItem>,
+    cartItems: List<CartItem>,
     userId: String,
     cartViewModel: CartViewModel,
     subtotal: Double,
     tax: Double,
     shipping: Double,
     total: Double,
-    navController: NavHostController,
-    screenWidth: Int,
+    navController: NavController,
     paddingValues: PaddingValues
 ) {
+    val screenWidth = LocalConfiguration.current.screenWidthDp
+
     if (screenWidth < 600) {
-        // Mobile Layout
         Column(
             modifier = Modifier
                 .padding(paddingValues)
-                .padding(16.dp)
                 .fillMaxSize()
+                .background(Maroon.copy(alpha = 0.05f))
+                .padding(16.dp)
         ) {
             CartItemsList(
                 cartItems = cartItems,
@@ -151,29 +198,24 @@ fun CartContent(
                 cartViewModel = cartViewModel,
                 modifier = Modifier.weight(1f)
             )
-
             Spacer(modifier = Modifier.height(16.dp))
-
             OrderSummarySection(
                 subtotal = subtotal,
                 tax = tax,
                 shipping = shipping,
                 total = total,
-                onCheckoutClick = {
-                    navController.navigate(ROUTE_CHECKOUT)
-                }
+                onCheckoutClick = { navController.navigate(ROUTE_CHECKOUT) }
             )
         }
     } else {
-        // Tablet/Desktop Layout
         Row(
             modifier = Modifier
                 .padding(paddingValues)
-                .padding(16.dp)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .background(Maroon.copy(alpha = 0.05f))
+                .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Cart Items - 2/3 width
             Box(modifier = Modifier.weight(2f)) {
                 CartItemsList(
                     cartItems = cartItems,
@@ -181,8 +223,6 @@ fun CartContent(
                     cartViewModel = cartViewModel
                 )
             }
-
-            // Order Summary - 1/3 width
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -193,9 +233,7 @@ fun CartContent(
                     tax = tax,
                     shipping = shipping,
                     total = total,
-                    onCheckoutClick = {
-                        navController.navigate(ROUTE_CHECKOUT)
-                    }
+                    onCheckoutClick = { navController.navigate(ROUTE_CHECKOUT) }
                 )
             }
         }
@@ -204,7 +242,7 @@ fun CartContent(
 
 @Composable
 fun CartItemsList(
-    cartItems: List<com.example.sportsgear.models.CartItem>,
+    cartItems: List<CartItem>,
     userId: String,
     cartViewModel: CartViewModel,
     modifier: Modifier = Modifier
@@ -216,8 +254,21 @@ fun CartItemsList(
         items(cartItems) { item ->
             CartItemCard(
                 item = item,
-                userId = userId,
-                cartViewModel = cartViewModel
+                onIncrease = {
+                    cartViewModel.updateQuantity(
+                        userId, item.productId, item.quantity + 1
+                    )
+                },
+                onDecrease = {
+                    if (item.quantity > 1) {
+                        cartViewModel.updateQuantity(
+                            userId, item.productId, item.quantity - 1
+                        )
+                    }
+                },
+                onRemove = {
+                    cartViewModel.removeFromCart(userId, item.productId)
+                }
             )
         }
     }
@@ -225,79 +276,62 @@ fun CartItemsList(
 
 @Composable
 fun CartItemCard(
-    item: com.example.sportsgear.models.CartItem,
-    userId: String,
-    cartViewModel: CartViewModel
+    item: CartItem,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit,
+    onRemove: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(12.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Product Image
             AsyncImage(
                 model = item.imageUrl,
                 contentDescription = item.name,
                 modifier = Modifier
                     .size(80.dp)
-                    .padding(4.dp)
+                    .clip(RoundedCornerShape(8.dp))
             )
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Product Details
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.name,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    maxLines = 2
+                    fontSize = 15.sp,
+                    maxLines = 2,
+                    color = MaroonDark
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Ksh ${item.price}",
-                    color = CustomMaroon,
+                    color = Maroon,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
-                // Quantity Controls
                 QuantityControls(
                     quantity = item.quantity,
-                    onDecrease = {
-                        if (item.quantity > 1) {
-                            cartViewModel.updateQuantity(userId, item.productId, item.quantity - 1)
-                        }
-                    },
-                    onIncrease = {
-                        cartViewModel.updateQuantity(userId, item.productId, item.quantity + 1)
-                    }
+                    onDecrease = onDecrease,
+                    onIncrease = onIncrease
                 )
             }
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Delete Button
-            IconButton(
-                onClick = {
-                    cartViewModel.removeFromCart(userId, item.productId)
-                },
-                modifier = Modifier.size(48.dp)
-            ) {
+            IconButton(onClick = onRemove) {
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = "Remove from cart",
-                    tint = Color.Red.copy(alpha = 0.7f)
+                    tint = MaterialTheme.colorScheme.error
                 )
             }
         }
@@ -314,7 +348,6 @@ fun QuantityControls(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Decrease Button
         IconButton(
             onClick = onDecrease,
             modifier = Modifier.size(32.dp),
@@ -322,29 +355,28 @@ fun QuantityControls(
         ) {
             Icon(
                 Icons.Default.Remove,
-                contentDescription = "Decrease quantity",
-                tint = if (quantity > 1) CustomMaroon else Color.Gray
+                contentDescription = "Decrease",
+                tint = if (quantity > 1) Maroon else MaroonDark.copy(alpha = 0.3f)
             )
         }
 
-        // Quantity Display
         Text(
             text = quantity.toString(),
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
             modifier = Modifier.width(24.dp),
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            color = MaroonDark
         )
 
-        // Increase Button
         IconButton(
             onClick = onIncrease,
             modifier = Modifier.size(32.dp)
         ) {
             Icon(
                 Icons.Default.Add,
-                contentDescription = "Increase quantity",
-                tint = CustomMaroon
+                contentDescription = "Increase",
+                tint = Maroon
             )
         }
     }
@@ -361,7 +393,6 @@ fun OrderSummarySection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
@@ -372,20 +403,19 @@ fun OrderSummarySection(
                 text = "Order Summary",
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
-                color = CustomMaroon
+                color = MaroonDark
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Summary Rows
             SummaryRow("Subtotal", "Ksh ${"%.2f".format(subtotal)}")
             SummaryRow("Tax (5%)", "Ksh ${"%.2f".format(tax)}")
             SummaryRow("Shipping", "Ksh ${"%.2f".format(shipping)}")
 
-            Divider(
-                modifier = Modifier.padding(vertical = 8.dp),
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
                 thickness = 1.dp,
-                color = CustomMaroon.copy(alpha = 0.2f)
+                color = Maroon.copy(alpha = 0.2f)
             )
 
             SummaryRow(
@@ -395,17 +425,15 @@ fun OrderSummarySection(
                 highlight = true
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Single Checkout Button
             Button(
                 onClick = onCheckoutClick,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CustomMaroon),
-                shape = RoundedCornerShape(12.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                    .height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Maroon),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
                     text = "Proceed to Checkout",
@@ -415,11 +443,10 @@ fun OrderSummarySection(
                 )
             }
 
-            // Help Text
             Text(
                 text = "You'll complete payment in the next step",
                 fontSize = 12.sp,
-                color = Color.Gray,
+                color = MaroonDark.copy(alpha = 0.5f),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -441,14 +468,18 @@ fun SummaryRow(
         Text(
             text = label,
             fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-            color = if (highlight) CustomMaroon else Color.Black,
+            color = if (highlight) Maroon else MaroonDark.copy(alpha = 0.8f),
             fontSize = if (highlight) 18.sp else 14.sp
         )
         Text(
             text = value,
             fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-            color = if (highlight) CustomMaroon else Color.Black,
+            color = if (highlight) Maroon else MaroonDark.copy(alpha = 0.8f),
             fontSize = if (highlight) 18.sp else 14.sp
         )
     }
 }
+
+// Note: removed the @Preview composable at the bottom of this file, since
+// CartScreen now requires a cartViewModel parameter that Preview has no way
+// to supply. If you want a preview back, you'd need a fake/mock CartViewModel.
