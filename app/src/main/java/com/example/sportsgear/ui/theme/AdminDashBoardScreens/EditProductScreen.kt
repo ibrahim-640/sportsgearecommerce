@@ -130,7 +130,7 @@ fun EditProductScreen(
                 var category by remember { mutableStateOf(product.category) }
                 var quantity by remember { mutableStateOf(product.quantity) }
                 var imageUri by remember { mutableStateOf<Uri?>(null) }
-                var isOnOffer by remember { mutableStateOf(product.isOnOffer) }
+                var onOffer by remember { mutableStateOf(product.onOffer) }
 
                 val imagePickerLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.GetContent()
@@ -235,8 +235,8 @@ fun EditProductScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Checkbox(
-                            checked = isOnOffer,
-                            onCheckedChange = { isOnOffer = it },
+                            checked = onOffer,
+                            onCheckedChange = { onOffer = it },
                             colors = CheckboxDefaults.colors(checkedColor = Maroon)
                         )
                         Text(
@@ -291,7 +291,7 @@ fun EditProductScreen(
                                         imageUri = imageUri,
                                         productId = product.productId,
                                         oldImageUrl = product.imageUrl,
-                                        isOnOffer = isOnOffer,
+                                        onOffer = onOffer,
                                         isAdmin = isAdmin == true
                                     )
                                 }

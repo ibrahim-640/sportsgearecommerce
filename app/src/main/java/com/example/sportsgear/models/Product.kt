@@ -12,7 +12,7 @@ data class Product(
     var category: String = "",
     var value: String = "",
     var productId: String = "",
-    var isOnOffer: Boolean = false
+    var onOffer: Boolean = false
 ) {
     // ✅ Required by Firebase for deserialization
     constructor() : this("", "", "", "", "", "", "", "")

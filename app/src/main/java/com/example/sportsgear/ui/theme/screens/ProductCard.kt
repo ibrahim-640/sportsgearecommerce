@@ -60,7 +60,7 @@ fun ProductCard(
                         .height(120.dp)
                         .clip(RoundedCornerShape(8.dp))
                 )
-                if (product.isOnOffer) { // ✅ simplified — isOnOffer is non-nullable Boolean
+                if (product.onOffer) { // ✅ simplified — OnOffer is non-nullable Boolean
                     Surface(
                         color = Maroon,
                         shape = RoundedCornerShape(bottomEnd = 8.dp),

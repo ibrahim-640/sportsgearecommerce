@@ -195,7 +195,6 @@ fun AppNavHost(
                 method = method,
                 cartViewModel = cartViewModel,
                 orderViewModel = orderViewModel,
-                productViewModel = viewModel()
             )
         }
 

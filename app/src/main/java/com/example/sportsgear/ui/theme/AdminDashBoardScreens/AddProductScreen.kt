@@ -62,7 +62,7 @@ fun AddProductScreen(
     var category by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
-    var isOnOffer by remember { mutableStateOf(false) }
+    var onOffer by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -197,8 +197,8 @@ fun AddProductScreen(
                         horizontalArrangement = Arrangement.Start
                     ) {
                         Checkbox(
-                            checked = isOnOffer,
-                            onCheckedChange = { isOnOffer = it },
+                            checked = onOffer,
+                            onCheckedChange = { onOffer = it },
                             colors = CheckboxDefaults.colors(checkedColor = Maroon)
                         )
                         Text("Mark as Offer Product", color = MaroonDark)
@@ -269,7 +269,7 @@ fun AddProductScreen(
                                         description = description.trim(),
                                         quantity = quantity.trim(),
                                         navController = navController,
-                                        isOnOffer = isOnOffer,
+                                        onOffer = onOffer,
                                         isAdmin = isAdmin == true
                                     )
                                 }

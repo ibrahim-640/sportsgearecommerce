@@ -409,7 +409,7 @@ fun OrderSummarySection(
             Spacer(modifier = Modifier.height(4.dp))
 
             SummaryRow("Subtotal", "Ksh ${"%.2f".format(subtotal)}")
-            SummaryRow("Tax (5%)", "Ksh ${"%.2f".format(tax)}")
+            SummaryRow("Tax (1%)", "Ksh ${"%.2f".format(tax)}")
             SummaryRow("Shipping", "Ksh ${"%.2f".format(shipping)}")
 
             HorizontalDivider(

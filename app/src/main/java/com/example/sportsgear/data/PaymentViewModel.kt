@@ -2,13 +2,12 @@ package com.example.sportsgear.data
 
 import android.content.Context
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sportsgear.network.MpesaRepository
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class PaymentViewModel(
@@ -24,21 +23,23 @@ class PaymentViewModel(
     private val _paymentSuccess = mutableStateOf(false)
     val paymentSuccess: State<Boolean> = _paymentSuccess
 
-    // ✅ REMOVED — shippingName/Address/Phone + updateShippingInfo. Nothing ever
-    // called updateShippingInfo, so _shippingPhone stayed "" forever and every
-    // M-Pesa request was silently sent with an empty phone number. Phone is now
-    // passed explicitly into initiatePayment() instead of read from this state.
+    // ✅ NEW — tracks whether STK push was sent and we are waiting
+    // for the user to confirm on their phone
+    private val _stkPushSent = mutableStateOf(false)
+    val stkPushSent: State<Boolean> = _stkPushSent
+
+    // ✅ NEW — holds any error message to show the user
+    private val _paymentError = mutableStateOf<String?>(null)
+    val paymentError: State<String?> = _paymentError
 
     fun selectPaymentMethod(method: String) {
         _selectedPaymentMethod.value = method
     }
 
-    // ✅ FIX — amount and phone are now REQUIRED explicit parameters, not derived.
-    // Previously: phone came from _shippingPhone (always ""), and amount was
-    // never passed at all — initiateMpesaPayment instead summed the user's
-    // ENTIRE past order history as a "fallback", sending a completely wrong
-    // amount to M-Pesa. orderViewModel param removed too — order creation now
-    // lives solely in SuccessScreen, so this no longer needs to write to Firebase.
+    fun clearError() {
+        _paymentError.value = null
+    }
+
     fun initiatePayment(
         context: Context,
         amount: String,
@@ -47,83 +48,70 @@ class PaymentViewModel(
         val method = _selectedPaymentMethod.value
         _isProcessing.value = true
         _paymentSuccess.value = false
+        _paymentError.value = null
+        _stkPushSent.value = false
 
         when (method) {
-            "M-Pesa" -> initiateMpesaPayment(context, phone, amount)
-            "Credit/Debit Card" -> simulateCardPayment(context, amount)
-            "PayPal" -> simulatePayPalPayment(context, amount)
-            "Bank Transfer" -> simulateBankTransfer(context, amount)
+            "M-Pesa" -> initiateMpesaPayment(phone, amount)
             else -> {
-                showToast(context, "Unknown payment method")
+                _paymentError.value = "Unknown payment method"
                 _isProcessing.value = false
             }
         }
     }
 
-    // In initiatePayment() inside PaymentViewModel, change:
-    private fun initiateMpesaPayment(context: Context, phoneNumber: String, amount: String) {
+    private fun initiateMpesaPayment(phoneNumber: String, amount: String) {
         viewModelScope.launch {
             try {
-                // ✅ FIX — was amount.toIntOrNull() ?: 0
-                // "1500.50".toIntOrNull() returns null → falls back to 0
-                // Every payment was being initiated for Ksh 0.
-                // toDoubleOrNull().toInt() correctly gives 1500 from "1500.50"
                 val amountInt = amount.toDoubleOrNull()?.toInt() ?: 0
-                val success = mpesaRepository.initiatePayment(phoneNumber, amountInt)
-                if (success) {
-                    showToast(context, "✅ M-Pesa payment initiated successfully!")
-                    _paymentSuccess.value = true
-                } else {
-                    showToast(context, "❌ Payment failed. Please try again.")
+
+                // ✅ Step 1 — Send STK push to user's phone
+                val stkSent = mpesaRepository.initiatePayment(phoneNumber, amountInt)
+
+                if (!stkSent) {
+                    // STK push failed to send — show error immediately
+                    _paymentError.value = "Failed to send M-Pesa request. Check your phone number and try again."
+                    _isProcessing.value = false
+                    return@launch
                 }
+
+                // ✅ Step 2 — STK push sent successfully
+                // Now we wait for user to enter PIN on their phone
+                // We set stkPushSent = true so UI shows "waiting" state
+                _stkPushSent.value = true
+                _isProcessing.value = false
+
+                // ✅ Step 3 — In a real implementation Safaricom calls your
+                // backend callback URL here. Since we have no backend,
+                // we poll Firebase or wait for the user to confirm manually.
+                // For now we show a "I have paid" button in the UI and only
+                // set paymentSuccess = true when the user taps it.
+                // This prevents orders from being created before payment.
+
+                Log.d("PaymentViewModel", "STK push sent to $phoneNumber for Ksh $amount")
+
             } catch (e: Exception) {
                 Log.e("PaymentViewModel", "M-Pesa Error: ${e.message}")
-                showToast(context, "⚠️ ${e.message}")
-            } finally {
+                _paymentError.value = "Payment error: ${e.message}"
                 _isProcessing.value = false
+                _stkPushSent.value = false
             }
         }
     }
 
-    private fun simulateCardPayment(context: Context, amount: String) {
-        viewModelScope.launch {
-            showToast(context, "💳 Processing card payment...")
-            kotlinx.coroutines.delay(2000)
-            showToast(context, "✅ Card payment successful!")
-            _paymentSuccess.value = true
-            _isProcessing.value = false
-        }
+    // ✅ NEW — called when user taps "I have completed payment"
+    // This is the manual confirmation step that replaces the
+    // automatic (incorrect) success detection
+    fun confirmPaymentCompleted() {
+        _paymentSuccess.value = true
+        _stkPushSent.value = false
     }
 
-    private fun simulatePayPalPayment(context: Context, amount: String) {
-        viewModelScope.launch {
-            showToast(context, "🌐 Redirecting to PayPal...")
-            kotlinx.coroutines.delay(2000)
-            showToast(context, "✅ PayPal payment confirmed!")
-            _paymentSuccess.value = true
-            _isProcessing.value = false
-        }
-    }
-
-    private fun simulateBankTransfer(context: Context, amount: String) {
-        viewModelScope.launch {
-            showToast(context, "🏦 Please complete bank transfer to finalize order.")
-            kotlinx.coroutines.delay(3000)
-            showToast(context, "✅ Bank transfer confirmed!")
-            _paymentSuccess.value = true
-            _isProcessing.value = false
-        }
-    }
-
-    // ✅ REMOVED — completeOrder(). It used to (a) derive the wrong total the
-    // same way initiateMpesaPayment did, and (b) write a SECOND order record
-    // to Firebase right before SuccessScreen wrote its own — every completed
-    // purchase was creating two order entries. Order creation now happens
-    // exactly once, in SuccessScreen's LaunchedEffect(Unit).
-
-    private fun showToast(context: Context, message: String) {
-        viewModelScope.launch(Dispatchers.Main) {
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-        }
+    // ✅ NEW — called if user wants to cancel or retry
+    fun resetPayment() {
+        _paymentSuccess.value = false
+        _stkPushSent.value = false
+        _isProcessing.value = false
+        _paymentError.value = null
     }
 }

@@ -67,7 +67,7 @@ class MpesaRepository {
                     // your callback endpoint changes — no code change needed.
                     CallBackURL = callbackUrl,
                     AccountReference = "SportsGear",
-                    TransactionDesc = "SportsGear Order Payment"
+                    TransactionDesc = "SG Payment"
                 )
 
                 val response = api.stkPush("Bearer $token", request)

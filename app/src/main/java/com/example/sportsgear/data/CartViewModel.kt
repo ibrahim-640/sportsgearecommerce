@@ -16,8 +16,8 @@ class CartViewModel : ViewModel() {
     private val database = FirebaseDatabase.getInstance().reference
 
     companion object {
-        const val FREE_SHIPPING_THRESHOLD = 5000.0
-        const val SHIPPING_COST = 250.0
+        const val FREE_SHIPPING_THRESHOLD = 50.0
+        const val SHIPPING_COST = 10.0
         const val TAX_RATE = 0.05
     }
 

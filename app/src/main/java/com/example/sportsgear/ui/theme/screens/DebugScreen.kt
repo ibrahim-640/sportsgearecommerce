@@ -361,7 +361,7 @@ package com.example.sportsgear.ui.theme.screens//package com.yourapp.ui.screens.
 //        category = "Test",
 //        value = "10.00",
 //        description = "Test",
-//        isOnOffer = false
+//        OnOffer = false
 //    )
 //
 //    cartViewModel.addToCart(userId, testProduct)

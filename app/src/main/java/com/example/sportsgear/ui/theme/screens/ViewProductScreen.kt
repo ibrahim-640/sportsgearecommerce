@@ -196,7 +196,7 @@ fun ViewProductItem(
                 )
 
                 // Offer badge
-                if (product.isOnOffer) {
+                if (product.onOffer) {
                     Surface(
                         color = Maroon,
                         shape = RoundedCornerShape(4.dp),

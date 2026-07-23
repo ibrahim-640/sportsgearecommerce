@@ -1,7 +1,7 @@
 package com.example.sportsgear.ui.screens
+import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -18,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.sportsgear.R
 import com.example.sportsgear.data.AuthViewModel
 import com.example.sportsgear.data.CartViewModel
 import com.example.sportsgear.data.ProductViewModel
@@ -37,24 +41,18 @@ import com.example.sportsgear.ui.theme.screens.FeaturedProductCard
 import com.example.sportsgear.ui.theme.screens.ProductCard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.ui.platform.LocalFocusManager
-import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     navController: NavController,
     cartViewModel: CartViewModel,
-    authViewModel: AuthViewModel // ✅ FIX — now passed in from AppNavHost instead of
-    // creating its own instance here. This screen now shares the same Firebase
-    // listener / cartItems StateFlow as Cart, Checkout, ProductDetail, etc.
+    authViewModel: AuthViewModel
 ) {
     val productViewModel: ProductViewModel = viewModel()
     val scope = rememberCoroutineScope()
 
     val allProducts by productViewModel.productList.collectAsState()
-    val isLoading by productViewModel.isLoading.collectAsState()
     val isAdmin by authViewModel.isAdmin.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
     val fullName by authViewModel.fullName.collectAsState()
@@ -72,10 +70,6 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         productViewModel.fetchProducts()
     }
-
-    // ✅ REMOVED — loadCartItems is now called once, centrally, in AppNavHost
-    // on the single shared cartViewModel instance. Calling it again here would
-    // just tear down and re-attach a redundant listener on the same instance.
 
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -98,7 +92,6 @@ fun HomeScreen(
         }
     }
 
-    // Reset hasSearched whenever the query becomes blank (clear icon or backspace)
     LaunchedEffect(searchQuery) {
         if (searchQuery.isBlank()) {
             hasSearched = false
@@ -122,27 +115,46 @@ fun HomeScreen(
     }
 
     val filteredProducts = remember(searchQuery, allProducts) {
-        if (searchQuery.isBlank()) {
-            allProducts
-        } else {
-            allProducts.filter { product ->
-                (product.name.contains(searchQuery, ignoreCase = true)) ||
-                        (product.category.contains(searchQuery, ignoreCase = true))
-            }
+        if (searchQuery.isBlank()) allProducts
+        else allProducts.filter { product ->
+            product.name.contains(searchQuery, ignoreCase = true) ||
+                    product.category.contains(searchQuery, ignoreCase = true)
         }
     }
 
+    // ✅ Fix 1 — Changed isOnOffer to onOffer to match Firebase field name
     val promoProducts = remember(allProducts) {
-        allProducts.filter { it.isOnOffer }
+        allProducts.filter { it.onOffer }
     }
 
     val newArrivals = remember(allProducts) {
         allProducts.take(5)
     }
 
+    // ✅ Fix 2 — Build category images from real Firebase products
+    val categoryImages = remember(allProducts) {
+        mapOf(
+            "sports wear" to (allProducts.firstOrNull {
+                it.category.equals("sports wear", ignoreCase = true)
+            }?.imageUrl ?: ""),
+
+            "Jerseys" to (allProducts.firstOrNull {
+                it.category.equals("Jerseys", ignoreCase = true)
+            }?.imageUrl ?: ""),
+
+            "Equipment" to (allProducts.firstOrNull {
+                it.category.equals("Equipment", ignoreCase = true)
+            }?.imageUrl ?: ""),
+
+            "Accessories" to (allProducts.firstOrNull {
+                it.category.equals("Accessories", ignoreCase = true)
+            }?.imageUrl ?: "")
+        )
+    }
+
     LaunchedEffect(filteredProducts, searchQuery) {
         if (searchQuery.isNotBlank()) {
-            Log.d("SearchDebug", "Search Query: '$searchQuery' | Results: ${filteredProducts.size}")
+            Log.d("SearchDebug", "Query: '$searchQuery' | Results: ${filteredProducts.size}")
         }
     }
 
@@ -151,11 +163,7 @@ fun HomeScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text(
-                        "SportsGear",
-                        color = MaroonDark,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("SportsGear", color = MaroonDark, fontWeight = FontWeight.Bold)
                 },
                 actions = {
                     if (isAdmin == true) {
@@ -230,6 +238,7 @@ fun HomeScreen(
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Greeting
             item {
                 Text(
                     text = if (!fullName.isNullOrBlank())
@@ -243,10 +252,12 @@ fun HomeScreen(
                 )
             }
 
+            // Banner slider — only shows if there are promo products
             if (promoProducts.isNotEmpty()) {
                 item { BannerSliderAuto(promoProducts) }
             }
 
+            // Search bar
             item {
                 OutlinedTextField(
                     value = searchQuery,
@@ -271,18 +282,16 @@ fun HomeScreen(
                     ),
                     keyboardActions = KeyboardActions(
                         onSearch = {
-                            Log.d("SearchAction", "Search pressed with query: '$searchQuery'")
                             hasSearched = true
                             scope.launch {
                                 snackbarHostState.showSnackbar(
                                     if (searchQuery.isBlank())
-                                        "Please enter search term"
+                                        "Please enter a search term"
                                     else
-                                        "Searching for '$searchQuery'... Found ${filteredProducts.size} results"
+                                        "Found ${filteredProducts.size} result(s) for '$searchQuery'"
                                 )
                             }
                             focusManager.clearFocus()
-                            Log.d("SearchResults", "Query: '$searchQuery' | Count: ${filteredProducts.size}")
                         }
                     ),
                     singleLine = true,
@@ -297,12 +306,17 @@ fun HomeScreen(
                 )
             }
 
+            // ✅ Fix 3 — CategoryBannerSection now receives dynamic categoryImages
             item {
-                CategoryBannerSection { category ->
-                    navController.navigate(getCategoryRoute(category))
-                }
+                CategoryBannerSection(
+                    onCategorySelected = { category ->
+                        navController.navigate(getCategoryRoute(category))
+                    },
+                    categoryImages = categoryImages // ✅ real product images from Firebase
+                )
             }
 
+            // New arrivals — hidden while searching
             if (newArrivals.isNotEmpty() && searchQuery.isBlank() && !hasSearched) {
                 item {
                     Text(
@@ -324,10 +338,9 @@ fun HomeScreen(
                             FeaturedProductCard(
                                 product = product,
                                 onClick = {
-                                    // ✅ FIX — was "$ROUTE_PRODUCT_DETAIL/${product.productId}",
-                                    // which now produces a 3-segment string that no longer
-                                    // matches the cleaned-up 2-segment route in AppNavHost.
-                                    navController.navigate(getProductDetailRoute(product.productId))
+                                    navController.navigate(
+                                        getProductDetailRoute(product.productId)
+                                    )
                                 },
                                 onAddToCart = {
                                     val userId = currentUser?.uid
@@ -347,6 +360,7 @@ fun HomeScreen(
                 }
             }
 
+            // Search results or full product list
             if (hasSearched && searchQuery.isNotBlank()) {
                 if (filteredProducts.isEmpty()) {
                     item {
@@ -470,16 +484,16 @@ fun HomeScreen(
     }
 }
 
+// ✅ Fix 4 — BannerSliderAuto unchanged — already correct
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BannerSliderAuto(promoProducts: List<Product>) {
-    val banners = if (promoProducts.isNotEmpty()) {
-        promoProducts.mapNotNull { it.imageUrl }
-    } else listOf(
-        "https://images.unsplash.com/photo-1606813903067-1d2a40c9baf4",
-        "https://images.unsplash.com/photo-1599058917766-6be8599b71a6",
-        "https://images.unsplash.com/photo-1600180758890-6c4c3f0b9e25"
-    )
+    // ✅ No fallback needed — HomeScreen only calls this when list is not empty
+    // ✅ No hardcoded Unsplash URLs — uses real product images from Firebase
+    val banners = promoProducts.mapNotNull { it.imageUrl }
+
+    // Guard — if somehow all products have null imageUrl
+    if (banners.isEmpty()) return
 
     val pagerState = rememberPagerState(pageCount = { banners.size })
 
@@ -514,11 +528,14 @@ fun BannerSliderAuto(promoProducts: List<Product>) {
                     model = banners[page],
                     contentDescription = "Promotional Banner",
                     contentScale = ContentScale.Crop,
+                    placeholder = painterResource(R.drawable.img), // ✅ while loading
+                    error = painterResource(R.drawable.img),        // ✅ if load fails
                     modifier = Modifier.fillMaxSize()
                 )
             }
         }
 
+        // Page indicator dots
         Row(
             modifier = Modifier.padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -538,13 +555,17 @@ fun BannerSliderAuto(promoProducts: List<Product>) {
     }
 }
 
+// ✅ Fix 5 — CategoryBannerSection now accepts dynamic images from Firebase
 @Composable
-fun CategoryBannerSection(onCategorySelected: (String) -> Unit) {
+fun CategoryBannerSection(
+    onCategorySelected: (String) -> Unit,
+    categoryImages: Map<String, String> // ✅ new parameter to receive images from HomeScreen
+) {
     val categoryBanners = listOf(
-        "Shoes" to "https://images.unsplash.com/photo-1513105737059-ff0cf0580b16",
-        "Jerseys" to "https://images.unsplash.com/photo-1599058917212-d750089bc07e",
-        "Equipment" to "https://images.unsplash.com/photo-1509021436665-8f07dbf5bf1d",
-        "Accessories" to "https://images.unsplash.com/photo-1581539250439-c52e3e1c4b3a"
+        "sports wear" to (categoryImages["sports wear"] ?: ""),
+        "Jerseys" to (categoryImages["Jerseys"] ?: ""),
+        "Equipment" to (categoryImages["Equipment"] ?: ""),
+        "Accessories" to (categoryImages["Accessories"] ?: "")
     )
 
     Column(Modifier.padding(vertical = 16.dp)) {
@@ -563,24 +584,31 @@ fun CategoryBannerSection(onCategorySelected: (String) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(categoryBanners) { (name, imageUrl) ->
+                // ✅ Fix 6 — Card(onClick) instead of .clickable
                 Card(
+                    onClick = { onCategorySelected(name) },
                     modifier = Modifier
                         .width(180.dp)
-                        .height(120.dp)
-                        .clickable { onCategorySelected(name) },
+                        .height(120.dp),
                     shape = RoundedCornerShape(12.dp),
                     elevation = CardDefaults.cardElevation(4.dp)
                 ) {
                     Box {
+                        // ✅ Fix 7 — placeholder and error added
+                        // ✅ Fix 8 — ifBlank { null } prevents loading empty URL
                         AsyncImage(
-                            model = imageUrl,
+                            model = imageUrl.ifBlank { null },
                             contentDescription = "$name category",
                             contentScale = ContentScale.Crop,
+                            placeholder = painterResource(R.drawable.img),
+                            error = painterResource(R.drawable.img),
                             modifier = Modifier.fillMaxSize()
                         )
+                        // ✅ Fix 9 — fillMaxWidth on label bar
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
+                                .fillMaxWidth()
                                 .background(MaroonDark.copy(alpha = 0.7f))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {

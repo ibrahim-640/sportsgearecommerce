@@ -62,7 +62,7 @@ fun UpdateProductScreen(
     var category by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var isOnOffer by remember { mutableStateOf(false) }
+    var onOffer by remember { mutableStateOf(false) }
     var existingImageUrl by remember { mutableStateOf("") }
     var imageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
 
@@ -82,7 +82,7 @@ fun UpdateProductScreen(
             description = it.description
             quantity = it.quantity
             existingImageUrl = it.imageUrl
-            isOnOffer = it.isOnOffer
+            onOffer = it.onOffer
         }
     }
 
@@ -283,8 +283,8 @@ fun UpdateProductScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Checkbox(
-                            checked = isOnOffer,
-                            onCheckedChange = { isOnOffer = it },
+                            checked = onOffer,
+                            onCheckedChange = { onOffer = it },
                             colors = CheckboxDefaults.colors(checkedColor = Maroon)
                         )
                         Text(
@@ -356,7 +356,7 @@ fun UpdateProductScreen(
                                             imageUri = imageUri,
                                             productId = productId,
                                             oldImageUrl = existingImageUrl,
-                                            isOnOffer = isOnOffer,
+                                            onOffer = onOffer,
                                             isAdmin = isAdmin == true
                                         )
                                     }

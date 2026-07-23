@@ -69,7 +69,7 @@ class ProductViewModel : ViewModel() {
     // so onCleared() can detach it from the SAME query node. Firebase requires the
     // listener to be removed from the same reference/query it was added to.
     private val offerQueryRef = rootDatabase.child("Products")
-        .orderByChild("isOnOffer")
+        .orderByChild("OnOffer")
         .equalTo(true)
 
     fun clearErrorMessage() { _errorMessage.value = null }
@@ -109,6 +109,9 @@ class ProductViewModel : ViewModel() {
 
     // ✅ Stores listener reference to prevent duplicates
     fun fetchOfferProducts() {
+        val offerRef = rootDatabase.child("Products")
+            .orderByChild("onOffer") // ✅ was "isOnOffer"
+            .equalTo(true)
         offerListener?.let { offerQueryRef.removeEventListener(it) }
 
         offerListener = object : ValueEventListener {
@@ -138,7 +141,7 @@ class ProductViewModel : ViewModel() {
         description: String,
         quantity: String,
         navController: NavController,
-        isOnOffer: Boolean,
+        onOffer: Boolean,
         isAdmin: Boolean // ✅ passed from screen
     ) {
         if (!isAdmin) {
@@ -172,7 +175,7 @@ class ProductViewModel : ViewModel() {
                     imageUrl = imageUrl,
                     category = category,
                     quantity = quantity,
-                    isOnOffer = isOnOffer
+                    onOffer = onOffer
                 )
 
                 withContext(Dispatchers.Main) {
@@ -210,7 +213,7 @@ class ProductViewModel : ViewModel() {
         imageUri: Uri?,
         productId: String,
         oldImageUrl: String,
-        isOnOffer: Boolean,
+        onOffer: Boolean,
         isAdmin: Boolean // ✅ passed from screen
     ) {
         if (!isAdmin) {
@@ -235,7 +238,7 @@ class ProductViewModel : ViewModel() {
                     imageUrl = newImageUrl,
                     category = category,
                     quantity = quantity,
-                    isOnOffer = isOnOffer
+                    onOffer = onOffer
                 )
 
                 withContext(Dispatchers.Main) {
@@ -266,22 +269,65 @@ class ProductViewModel : ViewModel() {
      * which may be stale) before writing the new value, and clamps at 0 so
      * concurrent purchases of the last unit can't drive it negative.
      */
-    fun decrementStockAfterPurchase(items: List<CartItem>) {
-        items.forEach { cartItem ->
-            val productRef = database.child(cartItem.productId)
-            productRef.child("quantity").get()
-                .addOnSuccessListener { snapshot ->
-                    val currentQty = snapshot.getValue(String::class.java)?.toIntOrNull() ?: 0
-                    val newQty = (currentQty - cartItem.quantity).coerceAtLeast(0)
-                    productRef.child("quantity").setValue(newQty.toString())
-                        .addOnFailureListener { e ->
-                            Log.e("ProductViewModel", "Failed to decrement stock for ${cartItem.productId}: ${e.message}")
-                        }
-                }
-                .addOnFailureListener { e ->
-                    Log.e("ProductViewModel", "Failed to read stock for ${cartItem.productId}: ${e.message}")
-                }
+    // ------------------------- STOCK MANAGEMENT -------------------------
+
+    fun decrementStockAfterPurchase(purchasedItems: List<CartItem>) {
+        // ✅ Guard — if cart was somehow empty, do nothing
+        if (purchasedItems.isEmpty()) return
+
+        purchasedItems.forEach { cartItem ->
+            decrementSingleProduct(cartItem.productId, cartItem.quantity)
         }
+    }
+
+    private fun decrementSingleProduct(productId: String, purchasedQuantity: Int) {
+        if (productId.isBlank()) return
+
+        val productRef = database.child(productId)
+
+        // ✅ Read current quantity first then update
+        // We must read before writing to avoid race conditions
+        // where two people buy the last item simultaneously
+        productRef.get()
+            .addOnSuccessListener { snapshot ->
+                val product = snapshot.getValue(Product::class.java)
+
+                if (product == null) {
+                    Log.e("ProductViewModel", "Product $productId not found for stock decrement")
+                    return@addOnSuccessListener
+                }
+
+                val currentQuantity = product.quantity.toIntOrNull() ?: 0
+                val newQuantity = (currentQuantity - purchasedQuantity)
+                    .coerceAtLeast(0) // ✅ never go below 0
+
+                Log.d("ProductViewModel",
+                    "Stock update: ${product.name} | " +
+                            "Before: $currentQuantity | " +
+                            "Purchased: $purchasedQuantity | " +
+                            "After: $newQuantity"
+                )
+
+                // ✅ Only update the quantity field
+                // not the entire product object
+                productRef.child("quantity").setValue(newQuantity.toString())
+                    .addOnSuccessListener {
+                        Log.d("ProductViewModel",
+                            "Stock decremented for ${product.name}: $newQuantity remaining"
+                        )
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("ProductViewModel",
+                            "Failed to decrement stock for ${product.name}: ${e.message}"
+                        )
+                        _errorMessage.value = "Failed to update stock for ${product.name}"
+                    }
+            }
+            .addOnFailureListener { e ->
+                Log.e("ProductViewModel",
+                    "Failed to read product $productId: ${e.message}"
+                )
+            }
     }
 
     // ------------------------- DELETE PRODUCT -------------------------
