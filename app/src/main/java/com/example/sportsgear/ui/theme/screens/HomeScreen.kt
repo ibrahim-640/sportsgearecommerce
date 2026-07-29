@@ -166,6 +166,23 @@ fun HomeScreen(
                     Text("SportsGear", color = MaroonDark, fontWeight = FontWeight.Bold)
                 },
                 actions = {
+                    IconButton(onClick = { navController.navigate(ROUTE_ASSISTANT) }) {
+                        Icon(
+                            Icons.Default.Chat,
+                            contentDescription = "Shopping Assistant",
+                            tint = MaroonDark
+                        )
+                    }
+                    IconButton(onClick = {
+                        Log.d("NavDebug", "Smart search icon clicked")
+                        navController.navigate(ROUTE_SMART_SEARCH)
+                    }) {
+                        Icon(
+                            Icons.Default.AutoAwesome,
+                            contentDescription = "Smart Search",
+                            tint = MaroonDark
+                        )
+                    }
                     if (isAdmin == true) {
                         IconButton(onClick = {
                             navController.navigate(ROUTE_ADMIN_DASHBOARD)
@@ -365,9 +382,7 @@ fun HomeScreen(
                 if (filteredProducts.isEmpty()) {
                     item {
                         Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
+                            modifier = Modifier.fillMaxWidth().padding(32.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
@@ -388,11 +403,12 @@ fun HomeScreen(
                                     textAlign = TextAlign.Center
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Try a different search term",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaroonDark.copy(alpha = 0.4f)
-                                )
+                                TextButton(onClick = {
+                                    navController.navigate(ROUTE_SMART_SEARCH)
+                                    // optionally could pass searchQuery forward if you want to auto-fill it there
+                                }) {
+                                    Text("Try Smart Search instead", color = Maroon)
+                                }
                             }
                         }
                     }

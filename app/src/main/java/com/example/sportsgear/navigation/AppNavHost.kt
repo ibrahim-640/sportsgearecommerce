@@ -258,6 +258,10 @@ fun AppNavHost(
         composable(ROUTE_ADD_PRODUCT) {
             AddProductScreen(navController = navController, authViewModel = authViewModel)
         }
+        // ASSISTANT
+        composable(ROUTE_ASSISTANT) {
+            AssistantScreen(navController = navController)
+        }
 
         // ----------------------------------------------------------
         // VIEW PRODUCTS
@@ -303,6 +307,14 @@ fun AppNavHost(
             EditProductScreen(
                 navController = navController,
                 productId = productId,
+                authViewModel = authViewModel
+            )
+        }
+        // SMART SEARCH
+        composable(ROUTE_SMART_SEARCH) {
+            SmartSearchScreen(
+                navController = navController,
+                cartViewModel = cartViewModel,
                 authViewModel = authViewModel
             )
         }

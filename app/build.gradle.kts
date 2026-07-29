@@ -1,6 +1,5 @@
-import java.util.Properties // ✅ ADD 1 — must be at the very top, before anything else
+import java.util.Properties
 
-// ✅ ADD 2 — reads local.properties at build time
 val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
@@ -11,6 +10,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization) // ✅ re-added — was missing
     alias(libs.plugins.google.gms.google.services)
 }
 
@@ -27,10 +27,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // ✅ ADD 3 — injects credentials from local.properties into BuildConfig
-        // These become accessible as BuildConfig.MPESA_CONSUMER_KEY etc.
-        // anywhere in your app code at runtime, without ever appearing
-        // in source code or version control.
         buildConfigField(
             "String",
             "MPESA_CONSUMER_KEY",
@@ -79,7 +75,7 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true // ✅ ADD — enables BuildConfig generation
+        buildConfig = true
     }
 }
 
@@ -87,6 +83,8 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")      // ✅ new — fixes ViewModel/viewModelScope
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0") // ✅ new — fixes viewModel() in Compose
     implementation("androidx.activity:activity-compose:1.9.0")
 
     implementation(platform("androidx.compose:compose-bom:2024.05.00"))
@@ -120,4 +118,10 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
+    implementation("com.google.firebase:firebase-ai")
+    implementation("com.google.firebase:firebase-appcheck-debug")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 }
